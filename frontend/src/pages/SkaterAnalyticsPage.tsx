@@ -23,7 +23,13 @@ import SelfEvalModal from "../components/SelfEvalModal";
 import ProgramEditor from "../components/ProgramEditor";
 import TrainingJournal from "../components/TrainingJournal";
 import { countryFlag } from "../utils/countryFlags";
-import { isJumpElement, isSpinElement, isStepElement, elementLevel } from "../utils/elementClassifier";
+import {
+  isJumpElement,
+  isSpinElement,
+  isStepElement,
+  elementLevel,
+  jumpRotations,
+} from "../utils/elementClassifier";
 import { useAuth } from "../auth/AuthContext";
 import { seasonDateRange } from "../utils/season";
 
@@ -31,6 +37,11 @@ import { seasonDateRange } from "../utils/season";
 function avg(arr: number[]) {
   if (!arr.length) return null;
   return arr.reduce((a, b) => a + b, 0) / arr.length;
+}
+
+function formatGoe(goe: number | null) {
+  if (goe == null) return "—";
+  return `${goe >= 0 ? "+" : ""}${goe.toFixed(2)}`;
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -42,18 +53,22 @@ function Skeleton({ className = "" }: { className?: string }) {
   );
 }
 
-// ─── Metric card ─────────────────────────────────────────────────────────────
-function MetricCard({
+// ─── Element family card (precision + level + GOE) ───────────────────────────
+function ElementFamilyCard({
   label,
-  value,
-  unit,
   percent,
+  leftLabel,
+  leftValue,
+  rightLabel,
+  rightValue,
   info,
 }: {
   label: string;
-  value: string;
-  unit?: string;
-  percent?: number;
+  percent: number;
+  leftLabel: string;
+  leftValue: string;
+  rightLabel: string;
+  rightValue: string;
   info?: string;
 }) {
   return (
@@ -72,57 +87,18 @@ function MetricCard({
         )}
       </div>
       <p className="text-2xl font-extrabold font-headline text-on-surface font-mono">
-        {value}
-        {unit && (
-          <span className="text-sm font-body font-normal text-on-surface-variant ml-1">
-            {unit}
-          </span>
-        )}
+        {percent.toFixed(1)}
+        <span className="text-sm font-body font-normal text-on-surface-variant ml-1">
+          % de précision
+        </span>
       </p>
-      {percent != null && (
-        <div className="mt-3 h-1.5 rounded-full bg-primary-container overflow-hidden">
-          <div
-            className="h-full rounded-full bg-primary transition-all duration-500"
-            style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Dual metric card (level + GOE side by side) ────────────────────────────
-function DualMetricCard({
-  label,
-  leftLabel,
-  leftValue,
-  rightLabel,
-  rightValue,
-  info,
-}: {
-  label: string;
-  leftLabel: string;
-  leftValue: string;
-  rightLabel: string;
-  rightValue: string;
-  info?: string;
-}) {
-  return (
-    <div className="bg-surface-container-lowest rounded-xl shadow-sm p-5">
-      <div className="flex items-center gap-1.5 mb-3">
-        <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
-          {label}
-        </p>
-        {info && (
-          <span className="group relative cursor-help">
-            <span className="material-symbols-outlined text-on-surface-variant text-[14px]">info</span>
-            <span className="invisible group-hover:visible absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 w-56 bg-on-surface text-surface text-[11px] font-body font-normal normal-case tracking-normal rounded-lg px-3 py-2 shadow-lg z-50 leading-relaxed">
-              {info}
-            </span>
-          </span>
-        )}
+      <div className="mt-3 h-1.5 rounded-full bg-primary-container overflow-hidden">
+        <div
+          className="h-full rounded-full bg-primary transition-all duration-500"
+          style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
+        />
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4 mt-4">
         <div>
           <p className="text-[9px] font-bold uppercase tracking-widest text-on-surface-variant mb-0.5">
             {leftLabel}
@@ -478,37 +454,26 @@ export default function SkaterAnalyticsPage() {
   // ── Derived: element KPIs ──────────────────────────────────────────────────
   const hasElements = elements && elements.length > 0;
 
-  const jumpPrecision = (() => {
+  const familyStats = (
+    predicate: (name: string) => boolean,
+    levelOf: (name: string) => number[]
+  ) => {
     if (!elements?.length) return null;
-    const jumps = elements.filter((el) => isJumpElement(el.element_name));
-    if (!jumps.length) return null;
-    const positive = jumps.filter((el) => (el.goe ?? 0) > 0).length;
-    return (positive / jumps.length) * 100;
-  })();
-
-  const spinStats = (() => {
-    if (!elements?.length) return null;
-    const spins = elements.filter((el) => isSpinElement(el.element_name));
-    if (!spins.length) return null;
-    const levels = spins.map((el) => elementLevel(el.element_name));
-    const goeVals = spins.map((el) => el.goe).filter((g): g is number => g != null);
+    const family = elements.filter((el) => predicate(el.element_name));
+    if (!family.length) return null;
+    const positive = family.filter((el) => (el.goe ?? 0) > 0).length;
+    const levels = family.flatMap((el) => levelOf(el.element_name));
+    const goeVals = family.map((el) => el.goe).filter((g): g is number => g != null);
     return {
+      precision: (positive / family.length) * 100,
       avgLevel: avg(levels),
       avgGoe: avg(goeVals),
     };
-  })();
+  };
 
-  const stepStats = (() => {
-    if (!elements?.length) return null;
-    const steps = elements.filter((el) => isStepElement(el.element_name));
-    if (!steps.length) return null;
-    const levels = steps.map((el) => elementLevel(el.element_name));
-    const goeVals = steps.map((el) => el.goe).filter((g): g is number => g != null);
-    return {
-      avgLevel: avg(levels),
-      avgGoe: avg(goeVals),
-    };
-  })();
+  const jumpStats = familyStats(isJumpElement, jumpRotations);
+  const spinStats = familyStats(isSpinElement, (name) => [elementLevel(name)]);
+  const stepStats = familyStats(isStepElement, (name) => [elementLevel(name)]);
 
   // ── Selected score for element detail panel ────────────────────────────────
   const [selectedScoreId, setSelectedScoreId] = useState<number | null>(null);
@@ -1284,40 +1249,37 @@ export default function SkaterAnalyticsPage() {
               </div>
 
               {/* KPI metrics */}
-              {jumpPrecision != null && (
-                <MetricCard
-                  label="Précision de saut"
-                  value={`${jumpPrecision.toFixed(1)}%`}
-                  percent={jumpPrecision}
-                  info="Pourcentage de sauts ayant reçu un GOE strictement positif, sur l'ensemble des compétitions."
+              {jumpStats && (
+                <ElementFamilyCard
+                  label="Sauts"
+                  percent={jumpStats.precision}
+                  leftLabel="Rotations moy."
+                  leftValue={jumpStats.avgLevel?.toFixed(2) ?? "—"}
+                  rightLabel="GOE moyen"
+                  rightValue={formatGoe(jumpStats.avgGoe)}
+                  info="Part des sauts ayant reçu un GOE strictement positif, nombre de rotations moyen (l'Axel compte pour un demi-tour de plus, chaque saut d'une combinaison compte) et GOE moyen, sur l'ensemble des compétitions."
                 />
               )}
               {spinStats && (
-                <DualMetricCard
+                <ElementFamilyCard
                   label="Pirouettes"
+                  percent={spinStats.precision}
                   leftLabel="Niveau moyen"
                   leftValue={spinStats.avgLevel?.toFixed(2) ?? "—"}
                   rightLabel="GOE moyen"
-                  rightValue={
-                    spinStats.avgGoe != null
-                      ? `${spinStats.avgGoe >= 0 ? "+" : ""}${spinStats.avgGoe.toFixed(2)}`
-                      : "—"
-                  }
-                  info="Niveau moyen des pirouettes (B = 0.5, sans niveau = 0) et GOE moyen, sur l'ensemble des compétitions."
+                  rightValue={formatGoe(spinStats.avgGoe)}
+                  info="Part des pirouettes ayant reçu un GOE strictement positif, niveau moyen (B = 0.5, sans niveau = 0) et GOE moyen, sur l'ensemble des compétitions."
                 />
               )}
               {stepStats && (
-                <DualMetricCard
+                <ElementFamilyCard
                   label="Pas et séquences"
+                  percent={stepStats.precision}
                   leftLabel="Niveau moyen"
                   leftValue={stepStats.avgLevel?.toFixed(2) ?? "—"}
                   rightLabel="GOE moyen"
-                  rightValue={
-                    stepStats.avgGoe != null
-                      ? `${stepStats.avgGoe >= 0 ? "+" : ""}${stepStats.avgGoe.toFixed(2)}`
-                      : "—"
-                  }
-                  info="Niveau moyen des pas et séquences chorégraphiques (B = 0.5, sans niveau = 0) et GOE moyen."
+                  rightValue={formatGoe(stepStats.avgGoe)}
+                  info="Part des pas et séquences chorégraphiques ayant reçu un GOE strictement positif, niveau moyen (B = 0.5, sans niveau = 0) et GOE moyen."
                 />
               )}
             </>

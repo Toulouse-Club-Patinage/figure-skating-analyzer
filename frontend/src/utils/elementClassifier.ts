@@ -37,3 +37,20 @@ export function elementLevel(name: string): number {
   if (/B$/.test(name)) return 0.5;
   return 0;
 }
+
+/**
+ * Nombre de rotations de chaque saut d'un élément.
+ * Les combinaisons sont découpées sur "+" : "3Lz+2T" → [3, 2].
+ * L'Axel garde son demi-tour : "2A" → [2.5].
+ * Les parties non reconnues comme sauts (Euler noté "1Eu", etc.) sont ignorées.
+ */
+export function jumpRotations(name: string): number[] {
+  const rotations: number[] = [];
+  for (const part of name.split("+")) {
+    const m = part.trim().match(JUMP_PATTERN);
+    if (!m) continue;
+    const turns = m[1] ? parseInt(m[1], 10) : 1;
+    rotations.push(m[2] === "A" ? turns + 0.5 : turns);
+  }
+  return rotations;
+}
