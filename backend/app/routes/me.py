@@ -129,8 +129,13 @@ async def update_preferences(request: Request, session: AsyncSession, data: dict
     user = await session.get(User, user_id)
     if "email_notifications" in data:
         user.email_notifications = bool(data["email_notifications"])
+    if data.get("tutorial_seen"):
+        user.tutorial_seen_at = datetime.now(timezone.utc)
     await session.commit()
-    return {"email_notifications": user.email_notifications}
+    return {
+        "email_notifications": user.email_notifications,
+        "tutorial_seen": user.tutorial_seen_at is not None,
+    }
 
 
 router = Router(

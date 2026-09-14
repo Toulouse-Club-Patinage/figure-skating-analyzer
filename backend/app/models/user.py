@@ -39,3 +39,6 @@ class User(Base):
     last_login_at: Mapped[datetime | None] = mapped_column(
         DateTime, nullable=True, default=None
     )
+    tutorial_seen_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, default=None
+    )

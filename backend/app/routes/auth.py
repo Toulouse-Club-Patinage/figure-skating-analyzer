@@ -49,6 +49,7 @@ def _user_dict(user: User) -> dict:
         "role": user.role,
         "must_change_password": user.must_change_password,
         "has_password": user.password_hash is not None,
+        "tutorial_seen": user.tutorial_seen_at is not None,
     }
 
 

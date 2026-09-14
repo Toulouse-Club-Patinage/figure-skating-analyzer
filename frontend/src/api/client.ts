@@ -375,6 +375,7 @@ export interface AuthUser {
   role: "admin" | "reader" | "skater" | "coach";
   must_change_password: boolean;
   has_password: boolean;
+  tutorial_seen: boolean;
 }
 
 export interface LoginResponse {
@@ -1005,11 +1006,17 @@ export const api = {
       markAllRead: () =>
         request<{ marked: number }>("/me/notifications/read-all", { method: "POST" }),
     },
-    updatePreferences: (data: { email_notifications: boolean }) =>
-      request<{ email_notifications: boolean }>("/me/preferences", {
-        method: "PATCH",
-        body: JSON.stringify(data),
-      }),
+    updatePreferences: (data: {
+      email_notifications?: boolean;
+      tutorial_seen?: boolean;
+    }) =>
+      request<{ email_notifications: boolean; tutorial_seen: boolean }>(
+        "/me/preferences",
+        {
+          method: "PATCH",
+          body: JSON.stringify(data),
+        }
+      ),
   },
 
   users: {

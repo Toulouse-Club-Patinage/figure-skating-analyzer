@@ -213,6 +213,7 @@ export default function CompetitionsPage() {
         </div>
         {isAdmin && (
           <button
+            data-tour="competitions-import"
             onClick={() => setShowForm((v) => !v)}
             className="bg-primary text-on-primary rounded-lg py-2 px-4 text-xs font-bold active:scale-95 transition-all"
           >
@@ -463,7 +464,7 @@ export default function CompetitionsPage() {
       )}
 
       {/* Competition list */}
-      <div className="space-y-3">
+      <div data-tour="competitions-liste" className="space-y-3">
         {filteredCompetitions.map((c: Competition) => {
           const compJobs = competitionJobs[c.id] || [];
           const activeJobTypes = compJobs.map((jid) => activeJobs[jid]?.type);

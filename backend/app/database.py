@@ -73,6 +73,7 @@ async def _migrate_add_columns(conn) -> None:
         ("app_settings", "french_ranking_url", "VARCHAR(500)"),
         ("app_settings", "account_requests_enabled", "INTEGER DEFAULT 0"),
         ("app_settings", "french_ranking_club_names", "JSON"),
+        ("users", "tutorial_seen_at", "DATETIME"),
     ]
     for table, column, col_type in _MIGRATIONS:
         try:

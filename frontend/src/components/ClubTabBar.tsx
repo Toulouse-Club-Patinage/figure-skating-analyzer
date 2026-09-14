@@ -8,7 +8,7 @@ const tabs = [
 export default function ClubTabBar() {
   const { pathname } = useLocation();
   return (
-    <div className="flex gap-0 mb-6">
+    <div data-tour="club-onglets" className="flex gap-0 mb-6">
       {tabs.map((tab) => {
         const active = pathname.startsWith(tab.to);
         return (

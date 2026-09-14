@@ -802,6 +802,19 @@ export const SCREEN_TOURS: ScreenTour[] = [
     pattern: "/patineurs/:id/analyse",
     label: "l'analyse d'un patineur",
     steps: [
+      // Un compte `skater` n'atteint jamais `/` (il y est redirigé) : ses
+      // repères de shell s'attachent donc à sa page d'entrée, qui est
+      // celle-ci. Un compte « club » les voit sur le tableau de bord.
+      {
+        target: "sidebar-nav",
+        title: "Votre espace",
+        body: "Ce menu mène à la page de votre patineur. Si plusieurs patineurs sont rattachés à votre compte, il affiche la liste.",
+        chapterId: "bienvenue",
+        audience: SKATER,
+      },
+      ...REPERES.filter(
+        (s) => s.target !== "sidebar-nav" && s.audience.includes("skater")
+      ),
       {
         target: "analyse-entete",
         title: "La fiche du patineur",
@@ -979,36 +992,12 @@ Le motif `/` est en dernier : `matchPath("/", "/patineurs")` ne matche pas en
 React Router 6 (le motif est exact par défaut), mais l'ordre reste la garantie
 la plus lisible.
 
-Les étapes `REPERES` ne figurent que dans le jeu du tableau de bord. Pour le
-parcours patineur, dont le point d'entrée est la page d'analyse, elles sont
-ajoutées au même endroit à l'étape suivante.
+Les `REPERES` apparaissent à deux endroits et à deux seulement : le jeu du
+tableau de bord (point d'entrée d'un compte « club ») et celui de la page
+d'analyse (point d'entrée d'un compte `skater`, qui n'atteint jamais `/`). Le
+filtrage par `audience` fait que chacun ne voit que les siens.
 
-- [ ] **Step 3: Ajouter les repères au point d'entrée du parcours patineur**
-
-Un compte `skater` n'atteint jamais `/` (il est redirigé). Ses repères de shell
-doivent donc s'attacher à sa page d'entrée. Dans l'entrée
-`/patineurs/:id/analyse`, préfixer les étapes par celles des repères réservées
-au parcours patineur :
-
-```ts
-    steps: [
-      {
-        target: "sidebar-nav",
-        title: "Votre espace",
-        body: "Ce menu mène à la page de votre patineur. Si plusieurs patineurs sont rattachés à votre compte, il affiche la liste.",
-        chapterId: "bienvenue",
-        audience: SKATER,
-      },
-      ...REPERES.filter((s) => s.target !== "sidebar-nav" && s.audience.includes("skater")),
-      // ... puis les étapes propres à l'écran, déjà écrites au Step 2
-    ],
-```
-
-Un compte « club » qui ouvre d'abord une page d'analyse ne verra pas les
-repères ici — il les verra en revenant au tableau de bord. C'est acceptable :
-le tableau de bord est sa page d'accueil et son point d'entrée normal.
-
-- [ ] **Step 4: Écrire la résolution de route**
+- [ ] **Step 3: Écrire la résolution de route**
 
 À la fin du fichier :
 
@@ -1043,13 +1032,13 @@ export function screenPatternFor(pathname: string): string | null {
 }
 ```
 
-- [ ] **Step 5: Vérifier la compilation**
+- [ ] **Step 4: Vérifier la compilation**
 
 ```bash
 cd frontend && PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit
 ```
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add frontend/src/help/tour.ts

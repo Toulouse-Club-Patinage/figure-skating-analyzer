@@ -311,7 +311,7 @@ export default function StatsPage() {
       </div>
 
       {/* ── PROGRESSION SECTION ── */}
-      <div className="bg-surface-container-lowest rounded-xl shadow-sm p-6">
+      <div data-tour="club-contenu" className="bg-surface-container-lowest rounded-xl shadow-sm p-6">
         <h2 className="text-base font-extrabold font-headline text-on-surface mb-4">
           Progression
         </h2>
