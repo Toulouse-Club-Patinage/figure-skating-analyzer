@@ -7,6 +7,14 @@ import { ProtectedRoute } from "./auth/ProtectedRoute";
 import { JobProvider } from "./contexts/JobContext";
 import ForcePasswordModal from "./components/ForcePasswordModal";
 import NotificationBell from "./components/NotificationBell";
+import { HelpProvider } from "./help/HelpContext";
+import HelpMenu from "./help/HelpMenu";
+import DocPanel from "./help/DocPanel";
+import TourOverlay from "./help/TourOverlay";
+import TourBanner from "./help/TourBanner";
+import TourReminder from "./help/TourReminder";
+import TourInviteModal from "./help/TourInviteModal";
+import StartTourButton from "./help/StartTourButton";
 import HomePage from "./pages/HomePage";
 import CompetitionPage from "./pages/CompetitionPage";
 import CompetitionsPage from "./pages/CompetitionsPage";
@@ -69,7 +77,7 @@ function SkaterNav({ closeSidebar, collapsed }: { closeSidebar: () => void; coll
       : `text-on-surface-variant hover:bg-surface-container rounded-xl mx-2 my-0.5 py-3 flex items-center gap-3 transition-colors ${collapsed ? "justify-center px-0" : "px-4"}`;
 
   return (
-    <nav className="flex-1 py-2">
+    <nav data-tour="sidebar-nav" className="flex-1 py-2">
       <NavLink
         to={to}
         onClick={closeSidebar}
@@ -182,6 +190,7 @@ function AuthenticatedLayout() {
 
   return (
     <JobProvider>
+    <HelpProvider passwordModalOpen={showPasswordModal}>
     <div className="flex min-h-screen">
       {/* Mobile overlay backdrop */}
       {sidebarOpen && (
@@ -216,7 +225,7 @@ function AuthenticatedLayout() {
         {user?.role === "skater" ? (
           <SkaterNav closeSidebar={closeSidebar} collapsed={collapsed} />
         ) : user?.role === "coach" ? (
-          <nav className="flex-1 py-2">
+          <nav data-tour="sidebar-nav" className="flex-1 py-2">
             {[
               { to: "/", label: "TABLEAU DE BORD", icon: "dashboard", end: true },
               ...(config?.training_enabled ? [{ to: "/entrainement", label: "ENTRAÎNEMENT", icon: "fitness_center", end: true }] : []),
@@ -243,7 +252,7 @@ function AuthenticatedLayout() {
             ))}
           </nav>
         ) : (
-          <nav className="flex-1 py-2">
+          <nav data-tour="sidebar-nav" className="flex-1 py-2">
             {[...navLinksBase, ...(user?.role !== "reader" ? [{ to: "/programme", label: "PROGRAMME", icon: "sports_score", end: true }] : []), ...(config?.training_enabled && user?.role !== "reader" ? [trainingNavLink] : [])].map(({ to, label, icon, end }) => (
               <NavLink
                 key={to}
@@ -282,7 +291,7 @@ function AuthenticatedLayout() {
             </NavLink>
           )}
           {collapsed ? (
-            <div className="flex flex-col items-center gap-1 py-2">
+            <div data-tour="user-account" className="flex flex-col items-center gap-1 py-2">
               <Link
                 to="/profil"
                 onClick={closeSidebar}
@@ -300,7 +309,7 @@ function AuthenticatedLayout() {
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2 px-4 py-2">
+            <div data-tour="user-account" className="flex items-center gap-2 px-4 py-2">
               <span className="material-symbols-outlined text-on-surface-variant text-xl">account_circle</span>
               <Link
                 to="/profil"
@@ -346,8 +355,13 @@ function AuthenticatedLayout() {
             <span className="material-symbols-outlined text-2xl">menu</span>
           </button>
           <h1 className="font-headline font-bold text-on-surface text-xl truncate flex-1">{pageTitle}</h1>
-          <NotificationBell />
+          <StartTourButton />
+          <HelpMenu />
+          <div data-tour="notifications">
+            <NotificationBell />
+          </div>
         </header>
+        <TourBanner />
 
         <ScrollToTop />
         {/* Page content */}
@@ -416,6 +430,11 @@ function AuthenticatedLayout() {
       {showPasswordModal && (
         <ForcePasswordModal onClose={dismissPasswordModal} />
       )}
+      <DocPanel />
+      <TourOverlay />
+      <TourReminder />
+      <TourInviteModal />
+    </HelpProvider>
     </JobProvider>
   );
 }
