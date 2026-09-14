@@ -89,11 +89,60 @@ première étape du tutoriel illisible : requalifié Important et corrigé.
 
 `509 passed` (base de référence avant la fonctionnalité : 505 ; +4 tests ajoutés).
 
-## Réserve
+## Revue finale de branche et seconde vérification
 
-La vérification a été menée sur une base **sans compétition importée**. Le
-filtrage par absence d'ancre est donc bien exercé, mais les étapes qui décrivent
-des blocs riches en données (évolution des scores, détail des éléments, liste
-des compétitions) n'ont pas pu être vues avec des données réelles. Elles sont
-déclarées au registre et leurs ancres sont posées ; leur rendu avec données
-reste à confirmer lors du premier usage réel.
+La revue finale a trouvé **un défaut critique que la vérification ci-dessus ne
+pouvait pas atteindre**, précisément parce qu'elle tournait sur une base vide.
+
+**Le tutoriel du parcours patineur perdait ses deux étapes de fond.** Pour un
+compte `skater` sur un club où le suivi d'entraînement est activé,
+`analyticsTab` démarre sur `"journal"` ; le bloc portant `analyse-evolution` et
+`analyse-elements` n'est alors pas monté, et le filtre DOM éliminait les deux
+étapes. Le parent ne voyait que les repères du shell — les étapes expliquant
+les scores disparaissaient en silence. Invisible sur base vide (ces blocs ne
+rendent rien de toute façon) et invisible pour les rôles club
+(`analyticsTab` y vaut `"competitions"`).
+
+Correctif retenu : `analyse-evolution` / `analyse-elements` deviennent
+réservées au parcours club, et deux étapes patineur sont ajoutées sur les blocs
+que le parent voit réellement à l'arrivée — `analyse-journal` et
+`analyse-autoeval`. Les deux ancres apparaissent dans deux branches de rendu
+mutuellement exclusives, donc `querySelector` ne peut pas viser la mauvaise.
+
+Trois autres correctifs : surlignage figé lors d'un défilement dans un
+conteneur interne (`capture: true` manquant, plus convergence du `scrollIntoView`
+lissé), fuite de l'état du tutoriel entre comptes sur poste partagé (la
+déconnexion ne purgeait pas les trois clés), et l'ancre `competitions-import`
+placée dans un formulaire replié par défaut — l'étape ne pouvait jamais se
+déclencher.
+
+### Seconde vérification navigateur (après correctifs)
+
+| Point | Résultat |
+|---|---|
+| Skater, club avec entraînement : ancres présentes | ✅ `analyse-entete`, `analyse-journal`, `analyse-autoeval` |
+| Tour patineur | ✅ **7 étapes** (contre 5 avant), finissant sur « Votre journal » et « Vos auto-évaluations » |
+| Toutes les bulles dans le viewport | ✅ |
+| Parcours club inchangé | ✅ tableau de bord : mêmes 7 étapes qu'avant correctif |
+| Étape d'import de compétition | ✅ se déclenche enfin — 2/2 sur `/competitions`, sans ouvrir le formulaire |
+| Purge des clés à la déconnexion | ✅ les 3 clés à `null` après `logout` |
+| Invariant ancres ↔ registre | ✅ 22/22 identiques |
+
+## Réserves
+
+1. La vérification n'a jamais disposé d'une base avec des **compétitions
+   importées**. Les étapes décrivant des blocs riches en données
+   (`analyse-evolution`, `analyse-elements`, `competitions-liste`,
+   `club-contenu`) ont leurs ancres posées et sont déclarées au registre, mais
+   leur rendu avec de vraies données reste à confirmer au premier usage. Le
+   défaut critique ci-dessus montre que c'est exactement le terrain où se
+   cachent les surprises : à re-tester après le premier import réel.
+2. Les rôles `coach` et `reader` n'ont pas été testés à la main. Vérifié par
+   lecture : tous deux atteignent les ancres du shell, et `reader` n'ayant pas
+   les routes `/programme` ni `/entrainement`, les étapes correspondantes ne
+   sont jamais évaluées — la dégradation est correcte.
+3. Point laissé tel quel (jugé à faible impact) : dans `HelpContext.tsx`, les
+   dépendances du `useMemo` calculant `hasStepsHere` ne suivent pas les
+   changements du DOM. Conséquence possible : le lien « Revoir cet écran » de
+   la pastille peut scintiller ou, brièvement, proposer un rejeu sans étape.
+   React re-rend assez souvent pour que cela se corrige seul.
