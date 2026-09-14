@@ -506,7 +506,10 @@ export default function SkaterAnalyticsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-surface font-body">
+    // `data-tour-tab` annonce l'onglet actif au tutoriel : cet écran change de
+    // contenu sans changer d'URL, et sans cet indice seul l'onglet ouvert à
+    // l'arrivée serait expliqué.
+    <div className="min-h-screen bg-surface font-body" data-tour-tab={analyticsTab}>
       {/* Score card modal */}
       {modalScore && (
         <ScoreCardModal
@@ -1389,7 +1392,7 @@ export default function SkaterAnalyticsPage() {
         ];
 
         return (
-          <div className="p-6 space-y-6">
+          <div className="p-6 space-y-6" data-tour="analyse-training">
             {/* Featured cards: latest review + active challenges */}
             {(latestReview || activeChallenges.length > 0) && (
               <div className="space-y-3">
