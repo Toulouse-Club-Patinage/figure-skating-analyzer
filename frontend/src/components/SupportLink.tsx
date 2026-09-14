@@ -38,7 +38,10 @@ export default function SupportLink({
   label = "Besoin d'aide ?",
   className = "",
 }: SupportLinkProps) {
-  const [failed, setFailed] = useState(false);
+  // Adresse révélée en secours, pour copie manuelle. Aucune page ne peut
+  // savoir si un `mailto:` a réellement ouvert un client mail : on ne devine
+  // donc pas, on laisse l'utilisateur demander l'adresse s'il en a besoin.
+  const [revealed, setRevealed] = useState(false);
 
   const { data: config } = useQuery({
     queryKey: ["config"],
@@ -58,20 +61,6 @@ export default function SupportLink({
     );
     // Navigation directe : le href n'existe à aucun moment dans le DOM.
     window.location.href = `mailto:${address}?subject=${subject}`;
-    // Si aucun client mail n'est installé, rien ne se passe visiblement —
-    // on révèle alors l'adresse pour que l'utilisateur puisse la copier.
-    setTimeout(() => setFailed(true), 600);
-  }
-
-  if (failed) {
-    return (
-      <span
-        className={`text-xs text-on-surface-variant select-all ${className}`}
-        title="Copiez cette adresse dans votre client mail"
-      >
-        {decodeAddress(encoded)}
-      </span>
-    );
   }
 
   if (iconOnly) {
@@ -89,13 +78,34 @@ export default function SupportLink({
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleClick}
-      className={`flex items-center gap-2 text-xs text-on-surface-variant hover:text-on-surface transition-colors ${className}`}
-    >
-      <span className="material-symbols-outlined text-base">mail</span>
-      <span>{label}</span>
-    </button>
+    <div className={`inline-flex flex-col items-center gap-0.5 ${className}`}>
+      <button
+        type="button"
+        onClick={handleClick}
+        className="flex items-center gap-2 text-xs text-on-surface-variant hover:text-on-surface transition-colors"
+      >
+        <span className="material-symbols-outlined text-base">mail</span>
+        <span>{label}</span>
+      </button>
+
+      {/* Secours : le bouton principal reste en place, l'adresse s'ajoute
+          à côté sans jamais le remplacer. */}
+      {revealed ? (
+        <span
+          className="text-[11px] text-on-surface-variant select-all"
+          title="Sélectionnez pour copier"
+        >
+          {decodeAddress(encoded)}
+        </span>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setRevealed(true)}
+          className="text-[11px] text-on-surface-variant/70 hover:text-on-surface underline underline-offset-2 transition-colors"
+        >
+          afficher l'adresse
+        </button>
+      )}
+    </div>
   );
 }
