@@ -70,7 +70,7 @@ export default function SkaterBrowserPage() {
       </div>
 
       {/* Skater table */}
-      <div className="bg-surface-container-lowest rounded-xl shadow-sm overflow-x-auto">
+      <div data-tour="patineurs-liste" className="bg-surface-container-lowest rounded-xl shadow-sm overflow-x-auto">
         {isLoading ? (
           <div className="px-6 py-10 text-sm font-body text-on-surface-variant text-center">
             Chargement…

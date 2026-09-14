@@ -97,7 +97,7 @@ export default function TrainingPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div data-tour="entrainement-contenu" className="space-y-6">
       {(user?.role === "admin" || user?.role === "coach") && (
         <MoodAggregateWidget
           currentWeekStart={monday.toISOString().slice(0, 10)}

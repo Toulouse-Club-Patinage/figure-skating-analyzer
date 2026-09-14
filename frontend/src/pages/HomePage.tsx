@@ -212,7 +212,7 @@ export default function HomePage() {
             Vue d'ensemble de la saison {season}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div data-tour="accueil-saison" className="flex items-center gap-3">
           <select
             value={season}
             onChange={(e) => setSeason(e.target.value)}
@@ -247,7 +247,7 @@ export default function HomePage() {
       {dashboard && (
         <>
           {/* KPI row */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div data-tour="accueil-indicateurs" className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <KpiCard label="Patineurs actifs" value={dashboard.active_skaters} icon="people" />
             <KpiCard label="Compétitions" value={dashboard.competitions_tracked} icon="emoji_events" />
             <KpiCard label="Programmes notés" value={dashboard.total_programs} icon="assignment" />
@@ -257,7 +257,7 @@ export default function HomePage() {
           {/* Main grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
             {/* Left wide panel */}
-            <div className="lg:col-span-2">
+            <div data-tour="accueil-scores" className="lg:col-span-2">
               {dashboard.top_scores.length > 0 ? (
                 <TopScoresTable scores={dashboard.top_scores} />
               ) : (

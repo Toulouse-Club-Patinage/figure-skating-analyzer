@@ -224,6 +224,7 @@ export default function CompetitionsPage() {
       {/* Add competition form */}
       {showForm && (
         <form
+          data-tour="competitions-import"
           className="bg-surface-container-lowest rounded-xl shadow-sm p-6 mb-6"
           onSubmit={(e) => {
             e.preventDefault();
@@ -463,7 +464,7 @@ export default function CompetitionsPage() {
       )}
 
       {/* Competition list */}
-      <div className="space-y-3">
+      <div data-tour="competitions-liste" className="space-y-3">
         {filteredCompetitions.map((c: Competition) => {
           const compJobs = competitionJobs[c.id] || [];
           const activeJobTypes = compJobs.map((jid) => activeJobs[jid]?.type);

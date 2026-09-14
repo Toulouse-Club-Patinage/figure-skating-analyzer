@@ -531,7 +531,7 @@ export default function SkaterAnalyticsPage() {
       {isLoading ? (
         <Skeleton className="mx-6 h-36 rounded-2xl" />
       ) : (
-        <div className="bg-gradient-to-r from-primary to-on-primary-fixed-variant py-6 px-4 sm:py-8 sm:px-8 flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
+        <div data-tour="analyse-entete" className="bg-gradient-to-r from-primary to-on-primary-fixed-variant py-6 px-4 sm:py-8 sm:px-8 flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6">
           <div className="flex items-center gap-4 w-full min-w-0 sm:flex-1">
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-2xl font-extrabold font-headline text-white ring-2 ring-white/30 shrink-0">
               {skater?.last_name?.[0]?.toUpperCase() ?? "?"}
@@ -785,7 +785,7 @@ export default function SkaterAnalyticsPage() {
         {/* ────────── LEFT PANEL ────────── */}
         <div className="lg:col-span-2 flex flex-col gap-6">
           {/* Score progression chart */}
-          <div className="bg-surface-container-lowest rounded-xl shadow-sm p-6">
+          <div data-tour="analyse-evolution" className="bg-surface-container-lowest rounded-xl shadow-sm p-6">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
               <h2 className="text-base font-extrabold font-headline text-on-surface">
                 Analyse longitudinale des scores
@@ -1306,7 +1306,7 @@ export default function SkaterAnalyticsPage() {
       {/* ── Second row: full-width charts ── */}
       <div className="px-6 pb-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* GOE chart */}
-        <div className="lg:col-span-1 bg-surface-container-lowest rounded-xl shadow-sm p-6">
+        <div data-tour="analyse-elements" className="lg:col-span-1 bg-surface-container-lowest rounded-xl shadow-sm p-6">
           <h2 className="text-base font-extrabold font-headline text-on-surface mb-4">
             GOE par élément
           </h2>

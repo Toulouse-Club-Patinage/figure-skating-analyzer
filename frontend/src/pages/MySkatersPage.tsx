@@ -58,6 +58,7 @@ function AddSkaterForm({ onDone }: { onDone: () => void }) {
 
   return (
     <form
+      data-tour="mes-patineurs-ajout"
       className="bg-surface-container rounded-xl p-5 max-w-md"
       onSubmit={(e) => {
         e.preventDefault();
@@ -167,7 +168,7 @@ export default function MySkatersPage() {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div data-tour="mes-patineurs-liste" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {skaters.map((s) => (
           <Link
             key={s.id}

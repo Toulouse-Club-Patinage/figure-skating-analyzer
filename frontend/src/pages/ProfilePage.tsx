@@ -113,7 +113,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div>
+    <div data-tour="profil-contenu">
       <h1 className="font-headline text-2xl font-bold text-on-surface mb-6">
         Mon compte
       </h1>

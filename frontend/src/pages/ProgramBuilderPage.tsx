@@ -131,7 +131,7 @@ export default function ProgramBuilderPage() {
   ) : null;
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6">
+    <div data-tour="programme-contenu" className="flex flex-col lg:flex-row gap-6">
       {/* Left column — main content */}
       <div className="flex-1 min-w-0 space-y-6">
         {/* Competition loader */}
