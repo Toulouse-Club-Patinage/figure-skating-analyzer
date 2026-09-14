@@ -13,6 +13,7 @@ import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { chaptersFor, type Audience, type Chapter } from "./content";
 import { screenPatternFor, screenTourFor, type TourStep } from "./tour";
+import { INVITE_DISMISSED_KEY, SCREENS_SEEN_KEY, TOUR_MODE_KEY } from "./tutorialKeys";
 
 interface HelpState {
   audience: Audience;
@@ -38,10 +39,6 @@ interface HelpState {
 }
 
 const HelpContext = createContext<HelpState | null>(null);
-
-const INVITE_DISMISSED_KEY = "tutorial_invite_dismissed";
-const SCREENS_SEEN_KEY = "tutorial_screens_seen";
-const TOUR_MODE_KEY = "tutorial_mode_active";
 
 function readSeenScreens(): string[] {
   try {

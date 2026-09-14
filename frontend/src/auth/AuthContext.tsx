@@ -7,6 +7,11 @@ import {
   type ReactNode,
 } from "react";
 import { api, setAccessToken, type AuthUser } from "../api/client";
+import {
+  INVITE_DISMISSED_KEY,
+  SCREENS_SEEN_KEY,
+  TOUR_MODE_KEY,
+} from "../help/tutorialKeys";
 
 interface AuthState {
   user: AuthUser | null;
@@ -64,6 +69,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setAccessToken(null);
     setUser(null);
+    // Efface l'état du tutoriel : sur un poste partagé, l'utilisateur suivant
+    // ne doit ni hériter des écrans déjà vus, ni retrouver le mode tutoriel
+    // actif pour le mauvais public.
+    try {
+      localStorage.removeItem(SCREENS_SEEN_KEY);
+    } catch {
+      // Navigation privée ou stockage indisponible : sans conséquence.
+    }
+    try {
+      sessionStorage.removeItem(TOUR_MODE_KEY);
+      sessionStorage.removeItem(INVITE_DISMISSED_KEY);
+    } catch {
+      // Navigation privée ou stockage indisponible : sans conséquence.
+    }
   }, []);
 
   const setup = useCallback(
