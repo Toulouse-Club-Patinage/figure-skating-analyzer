@@ -49,10 +49,12 @@ const TOUS: Audience[] = ["club", "skater"];
 const CLUB: Audience[] = ["club"];
 const SKATER: Audience[] = ["skater"];
 
-/** Étapes communes à tous les écrans : les repères du shell. Elles ouvrent le
- *  mini-parcours du premier écran visité, puis ne sont plus rejouées — d'où
- *  leur présence dans le seul jeu du tableau de bord et de la page patineur,
- *  qui sont les deux points d'entrée possibles. */
+/** Étapes communes à tous les écrans : les repères du shell. Leurs ancres
+ *  vivent dans `App.tsx`, donc elles sont présentes sur CHAQUE écran — c'est
+ *  pourquoi elles ne sont plus recopiées dans les écrans d'entrée possibles
+ *  (on ne sait pas d'où l'utilisateur démarre) mais jouées une seule fois, en
+ *  préambule du premier écran du parcours. Voir `PRELUDE_KEY` et
+ *  `preludeFor`. */
 const REPERES: TourStep[] = [
   {
     target: "sidebar-nav",
@@ -60,6 +62,13 @@ const REPERES: TourStep[] = [
     body: "Toutes les sections de l'application sont ici. Le menu se replie avec la flèche en bas pour gagner de la place.",
     chapterId: "premiers-pas",
     audience: CLUB,
+  },
+  {
+    target: "sidebar-nav",
+    title: "Votre espace",
+    body: "Ce menu mène à la page de votre patineur. Si plusieurs patineurs sont rattachés à votre compte, il affiche la liste.",
+    chapterId: "bienvenue",
+    audience: SKATER,
   },
   {
     target: "notifications",
@@ -101,19 +110,6 @@ export const SCREEN_TOURS: ScreenTour[] = [
     tab: "competitions",
     label: "l'onglet Compétitions",
     steps: [
-      // Un compte `skater` n'atteint jamais `/` (il y est redirigé) : ses
-      // repères de shell s'attachent donc à sa page d'entrée. Un compte
-      // « club » les voit sur le tableau de bord.
-      {
-        target: "sidebar-nav",
-        title: "Votre espace",
-        body: "Ce menu mène à la page de votre patineur. Si plusieurs patineurs sont rattachés à votre compte, il affiche la liste.",
-        chapterId: "bienvenue",
-        audience: SKATER,
-      },
-      ...REPERES.filter(
-        (s) => s.target !== "sidebar-nav" && s.audience.includes("skater")
-      ),
       {
         target: "analyse-entete",
         title: "La fiche du patineur",
@@ -136,11 +132,25 @@ export const SCREEN_TOURS: ScreenTour[] = [
         audience: CLUB,
       },
       {
+        target: "analyse-evolution",
+        title: "L'évolution de vos scores",
+        body: "Chaque point est une compétition. Le sélecteur au-dessus du graphique change ce qui est tracé : score total, segments, note technique ou composantes.",
+        chapterId: "page-patineur",
+        audience: SKATER,
+      },
+      {
         target: "analyse-elements",
         title: "Le détail technique",
         body: "Chaque élément réalisé, sa valeur de base et la note d'exécution attribuée par les juges.",
         chapterId: "comprendre-les-scores-club",
         audience: CLUB,
+      },
+      {
+        target: "analyse-elements",
+        title: "Le détail de vos éléments",
+        body: "Chaque élément réalisé, sa valeur de base et la note d'exécution (GOE) attribuée par les juges.",
+        chapterId: "page-patineur",
+        audience: SKATER,
       },
     ],
   },
@@ -170,16 +180,6 @@ export const SCREEN_TOURS: ScreenTour[] = [
     tab: "journal",
     label: "l'onglet Journal",
     steps: [
-      {
-        target: "sidebar-nav",
-        title: "Votre espace",
-        body: "Ce menu mène à la page de votre patineur. Si plusieurs patineurs sont rattachés à votre compte, il affiche la liste.",
-        chapterId: "bienvenue",
-        audience: SKATER,
-      },
-      ...REPERES.filter(
-        (s) => s.target !== "sidebar-nav" && s.audience.includes("skater")
-      ),
       {
         target: "analyse-journal",
         title: "Votre journal",
@@ -419,7 +419,6 @@ export const SCREEN_TOURS: ScreenTour[] = [
     pattern: "/",
     label: "le tableau de bord",
     steps: [
-      ...REPERES,
       {
         target: "accueil-indicateurs",
         title: "Les indicateurs de la saison",
@@ -445,11 +444,31 @@ export const SCREEN_TOURS: ScreenTour[] = [
   },
 ];
 
-/** Résout la route courante dans le registre, puis filtre les étapes : par
- *  parcours, et par présence effective de la cible dans le DOM. Ce second
- *  filtre est indispensable — le tableau de bord ne rend ses indicateurs que
- *  lorsque des données existent, donc sur une installation neuve la moitié des
- *  ancres manquent. */
+/** Pseudo-écran mémorisé quand les repères du shell ont été joués. Il n'est lié
+ *  à aucune route : c'est la marque « le préambule est fait », pour que les
+ *  écrans suivants n'y reviennent pas. */
+export const PRELUDE_KEY = "#repères";
+
+/** Filtre un jeu d'étapes : par parcours, et par présence effective de la
+ *  cible dans le DOM. Ce second filtre est indispensable — le tableau de bord
+ *  ne rend ses indicateurs que lorsque des données existent, donc sur une
+ *  installation neuve la moitié des ancres manquent. */
+function usableSteps(steps: TourStep[], audience: Audience): TourStep[] {
+  return steps.filter(
+    (s) =>
+      s.audience.includes(audience) &&
+      document.querySelector(`[data-tour="${s.target}"]`) !== null
+  );
+}
+
+/** Les repères du shell, pour le parcours donné. Le contexte d'aide les joue
+ *  en préambule du PREMIER écran du tutoriel, quel qu'il soit : les ancres
+ *  vivent dans `App.tsx` et sont donc disponibles partout. */
+export function preludeFor(audience: Audience): TourStep[] {
+  return usableSteps(REPERES, audience);
+}
+
+/** Résout la route courante dans le registre, puis filtre ses étapes. */
 export function screenTourFor(
   pathname: string,
   audience: Audience
@@ -457,11 +476,7 @@ export function screenTourFor(
   const screen = findScreen(pathname, activeTab());
   if (!screen) return null;
 
-  const steps = screen.steps.filter(
-    (s) =>
-      s.audience.includes(audience) &&
-      document.querySelector(`[data-tour="${s.target}"]`) !== null
-  );
+  const steps = usableSteps(screen.steps, audience);
 
   if (steps.length === 0) return null;
   return { ...screen, steps };

@@ -21,10 +21,9 @@ Bascule de l'application SkateLab depuis la VM GCP (`skatelab-vm`, projet
 > **Étape 9 (CI) : faite** — les workflows `.github/workflows/ci-*.yml` qui
 > poussaient vers Artifact Registry ont été supprimés.
 >
-> **Reste à faire : §11, décommissionnement GCP.** La VM `skatelab-vm` est
-> volontairement **conservée quelques jours** comme filet de retour arrière.
-> ⚠️ Un retour arrière perdrait toutes les écritures faites sur le VPS depuis
-> le 2026-08-30 16h45.
+> **Étape 11 (décommissionnement GCP) : faite le 2026-09-13.** Voir §11.
+> ⚠️ **Le retour arrière n'est plus possible** : la VM, son disque, le load
+> balancer et l'IP statique `34.8.236.77` sont supprimés définitivement.
 >
 > ---
 >
@@ -399,6 +398,35 @@ traîner : soit on valide et on décommissionne GCP, soit on revient vite.
 ---
 
 ## 11. Décommissionner GCP (après validation)
+
+> ## ✅ **FAIT LE 2026-09-13**
+>
+> Sauvegarde rapatriée avant suppression :
+> `~/backups/skatelab-data-gcp-2026-08-30.tar.gz` (243 Mo, archive du jour de la
+> bascule, intégrité `gzip -t` vérifiée, contient `skating.db` 41 Mo + `pdfs/` +
+> `logos/`). C'est l'état de GCP au 2026-08-30 16h34 — **pas** les écritures
+> faites sur le VPS depuis.
+>
+> **Supprimé** : `skatelab-https-rule`, `skatelab-http-rule`,
+> `skatelab-https-proxy`, `skatelab-http-proxy`, `skatelab-lb`,
+> `skatelab-http-redirect`, `skatelab-cert`, `skatelab-backend`, `skatelab-hc`,
+> `skatelab-ig`, `skatelab-vm` (+ son disque de 20 Go), `skatelab-ip`
+> (`34.8.236.77`), les règles de pare-feu `allow-http` / `allow-https` /
+> `allow-health-check`, et le dépôt **Artifact Registry** `skating-analyzer`
+> (5,7 Go d'images Docker — la CI qui y poussait était déjà retirée, le VPS
+> construit ses images localement).
+>
+> **Conservé délibérément — le support OAuth du déploiement VPS en dépend** :
+> le projet `skating-analyzer` lui-même, son client OAuth
+> `231127361333-qr38k9….apps.googleusercontent.com` et son écran de consentement,
+> le compte de service `github-deployer-sa`, le pool Workload Identity
+> `github-actions-pool`, le réseau `default` et ses règles par défaut.
+> Vérifié après suppression : `GET /api/config` sur la prod VPS renvoie toujours
+> ce `google_client_id`, et `skatelab.toulouseclubpatinage.com` répond 200 (SPA
+> et API), tout comme l'application Ligue.
+>
+> Le projet ne facture donc plus aucune ressource de calcul, de réseau ni de
+> stockage : un client OAuth est gratuit.
 
 **À ne faire qu'après plusieurs jours de fonctionnement nominal sur le VPS**, et
 après avoir constitué une sauvegarde de la base migrée.

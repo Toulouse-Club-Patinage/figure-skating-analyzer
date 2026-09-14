@@ -12,7 +12,13 @@ import { useLocation } from "react-router-dom";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { chaptersFor, type Audience, type Chapter } from "./content";
-import { screenPatternFor, screenTourFor, type TourStep } from "./tour";
+import {
+  PRELUDE_KEY,
+  preludeFor,
+  screenPatternFor,
+  screenTourFor,
+  type TourStep,
+} from "./tour";
 import { INVITE_DISMISSED_KEY, SCREENS_SEEN_KEY, TOUR_MODE_KEY } from "./tutorialKeys";
 
 interface HelpState {
@@ -203,13 +209,23 @@ export function HelpProvider({
 
       const screen = screenTourFor(pathname, audience);
       lastHandled.current = pattern;
-      if (!screen) {
+
+      // Les repères du shell ouvrent le parcours sur le PREMIER écran visité,
+      // quel qu'il soit, puis ne reviennent plus : leurs ancres étant dans
+      // `App.tsx`, aucun écran n'est un point d'entrée privilégié.
+      const seen = readSeenScreens();
+      const prelude = seen.includes(PRELUDE_KEY) ? [] : preludeFor(audience);
+
+      if (!screen && prelude.length === 0) {
         // Aucune étape affichable ici (données absentes, mauvais parcours) :
         // marquer vu plutôt que d'encadrer le vide.
         markScreenSeen(pattern);
         return;
       }
-      setSteps(screen.steps);
+      if (prelude.length > 0) markScreenSeen(PRELUDE_KEY);
+      if (!screen) markScreenSeen(pattern);
+
+      setSteps([...prelude, ...(screen?.steps ?? [])]);
       setStepIndex(0);
     }, 400);
 
