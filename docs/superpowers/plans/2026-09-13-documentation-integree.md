@@ -2,26 +2,27 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ajouter un menu « ? » ouvrant une documentation illustrée, et un tutoriel en superposition proposé à la première connexion après le modal de changement de mot de passe.
+**Goal:** Ajouter un menu « ? » ouvrant une documentation illustrée, et un **mode tutoriel** persistant qui explique chaque écran principal au moment où l'utilisateur y arrive.
 
-**Architecture:** Un contexte React `HelpProvider` monté dans `AuthenticatedLayout` possède tout l'état (panneau de doc, tour actif, invite due) et l'expose aux composants visuels. Le tour cible des attributs `data-tour` posés dans `App.tsx` et saute les étapes dont la cible est absente du DOM, ce qui absorbe les différences de rôle. L'état « tutoriel vu » est persisté en base sur `users.tutorial_seen_at` via le `PATCH /api/me/preferences` existant.
+**Architecture:** Un contexte React `HelpProvider` monté dans `AuthenticatedLayout` possède tout l'état : panneau de doc, mode tutoriel actif, étape courante, écrans déjà vus. Le tutoriel ne navigue jamais lui-même — il réagit aux changements de route en résolvant la route courante dans un registre central (`help/tour.ts`) via `matchPath`. Les étapes ciblent des attributs `data-tour` et celles dont la cible est absente du DOM sont éliminées. Le mode ne s'arrête que sur « Terminer le tutoriel », ce qui persiste alors `users.tutorial_seen_at`.
 
-**Tech Stack:** React 19 + TypeScript + Tailwind CSS (aucune bibliothèque de composants), Litestar + SQLAlchemy async + SQLite, pytest-asyncio.
+**Tech Stack:** React 19 + TypeScript + Tailwind CSS (aucune bibliothèque de composants), React Router 6 (`matchPath`), Litestar + SQLAlchemy async + SQLite, pytest-asyncio.
 
 **Spec:** `docs/superpowers/specs/2026-09-13-documentation-integree-design.md`
 
 ## Global Constraints
 
-- **Tout le texte d'interface est en français.** Sans exception, y compris les libellés `aria-label` et les messages d'erreur.
+- **Tout le texte d'interface est en français.** Sans exception, `aria-label` et messages d'erreur compris.
 - **Tailwind CSS uniquement**, aucune bibliothèque de composants, aucune dépendance npm nouvelle.
-- **Pas de bordure pour le sectionnement** — utiliser la superposition de surfaces (`surface`, `surface-container-low`, `surface-container`, `surface-container-lowest`).
-- **Ne jamais utiliser la classe `bg-scrim`** : le token `scrim` n'est pas défini dans `frontend/tailwind.config.js` et ne produit aucune couleur. Pour les fonds de modal, utiliser `bg-on-surface/40` comme le fait `ForcePasswordModal`.
+- **Pas de bordure pour le sectionnement** — superposition de surfaces (`surface`, `surface-container-low`, `surface-container`, `surface-container-lowest`).
+- **Ne jamais utiliser la classe `bg-scrim`** : le token `scrim` n'est pas défini dans `frontend/tailwind.config.js` et ne produit aucune couleur. Pour les fonds de modal, utiliser `bg-on-surface/40` comme `ForcePasswordModal`.
 - **Polices** : `font-headline` (Manrope) pour les titres, corps par défaut (Inter), icônes via `<span className="material-symbols-outlined">`.
-- **Couleurs clés** : `on-surface` texte, `on-surface-variant` texte secondaire, `primary` actions, `on-primary` texte sur primary.
-- **Empilement** : `TourOverlay` en `z-[60]`, `DocPanel` / `TourInviteModal` en `z-50`. La sidebar existante est en `z-40`, la barre supérieure en `z-30`.
+- **Couleurs** : `on-surface`, `on-surface-variant`, `primary`, `on-primary`, `error`. Tous vérifiés présents dans `tailwind.config.js`.
+- **Empilement** : `TourOverlay` `z-[60]`, `TourReminder` `z-[55]`, `DocPanel` / `TourInviteModal` `z-50`. Sidebar existante `z-40`, barre supérieure `z-30`.
 - **Commandes** : `npm` et `uv` ne sont pas dans le PATH. Préfixer par `PATH="/opt/homebrew/bin:$PATH"`.
 - **Tests backend** : `cd backend && PATH="/opt/homebrew/bin:$PATH" uv run pytest`.
-- **Aucun harnais de test frontend n'existe** et ce plan n'en introduit pas. Les tâches frontend se vérifient par `tsc` et par contrôle manuel.
+- **Aucun harnais de test frontend n'existe** et ce plan n'en introduit pas. Les tâches frontend se vérifient par `tsc --noEmit` et par contrôle manuel.
+- **Conventions de test** : la fixture `admin_user` renvoie un tuple `(user, password)` (`conftest.py:59`), mot de passe `testpass123` ; `POST /api/auth/login` répond `200` ; `@pytest.mark.asyncio` est posé explicitement sur chaque test malgré `asyncio_mode = "auto"`.
 - **Messages de commit en français**, préfixe conventionnel (`feat:`, `test:`, `docs:`).
 
 ---
@@ -34,35 +35,36 @@
 | `backend/app/database.py` | *(modifié)* entrée de migration |
 | `backend/app/routes/auth.py` | *(modifié)* `_user_dict` expose `tutorial_seen` |
 | `backend/app/routes/me.py` | *(modifié)* `PATCH /preferences` accepte `tutorial_seen` |
-| `backend/tests/test_tutorial_seen.py` | *(créé)* les 3 tests backend |
-| `frontend/src/api/client.ts` | *(modifié)* `AuthUser.tutorial_seen`, signature de `updatePreferences` |
-| `frontend/src/help/content.tsx` | *(créé)* chapitres + illustrations JSX — données, aucune logique |
-| `frontend/src/help/tour.ts` | *(créé)* définition des étapes du tour |
-| `frontend/src/help/HelpContext.tsx` | *(créé)* état partagé + orchestration de la séquence |
-| `frontend/src/help/DocPanel.tsx` | *(créé)* panneau latéral de documentation |
-| `frontend/src/help/HelpMenu.tsx` | *(créé)* bouton « ? » et menu déroulant |
+| `backend/tests/test_tutorial_seen.py` | *(créé)* les 4 tests backend |
+| `frontend/src/api/client.ts` | *(modifié)* `AuthUser.tutorial_seen`, signature `updatePreferences` |
+| `frontend/src/help/content.tsx` | *(créé)* chapitres + illustrations JSX |
+| `frontend/src/help/tour.ts` | *(créé)* registre des étapes par route + résolution |
+| `frontend/src/help/HelpContext.tsx` | *(créé)* état, mode tutoriel, orchestration |
+| `frontend/src/help/DocPanel.tsx` | *(créé)* panneau de documentation |
+| `frontend/src/help/HelpMenu.tsx` | *(créé)* bouton « ? » et menu |
 | `frontend/src/help/TourOverlay.tsx` | *(créé)* masque, surlignage, bulle |
+| `frontend/src/help/TourBanner.tsx` | *(créé)* bandeau + « Terminer le tutoriel » |
+| `frontend/src/help/TourReminder.tsx` | *(créé)* pastille de rappel |
 | `frontend/src/help/TourInviteModal.tsx` | *(créé)* modal de première connexion |
-| `frontend/src/help/StartTourButton.tsx` | *(créé)* bouton visible tant que le tour n'est pas suivi |
-| `frontend/src/App.tsx` | *(modifié)* montage, attributs `data-tour` |
+| `frontend/src/help/StartTourButton.tsx` | *(créé)* bouton de démarrage |
+| `frontend/src/App.tsx` | *(modifié)* montage, bandeau, ancres du shell |
+| 8 pages sous `frontend/src/pages/` | *(modifiées)* ancres `data-tour` propres à chaque écran |
 
-**Ordre des tâches** : le backend d'abord (1–2), car le frontend en dépend ; puis les données de contenu (3–4), qui n'ont aucune dépendance ; puis le contexte (5) ; puis les composants visuels (6–9) ; enfin le câblage (10) et la vérification (11).
+**Ordre** : backend (1–2) → types (3) → données de contenu (4–5) → contexte (6) → composants visuels (7–10) → câblage du shell (11) → ancres des pages (12) → vérification (13).
 
 ---
 
 ### Task 1 : Colonne `tutorial_seen_at` et exposition dans `AuthUser`
 
 **Files:**
-- Modify: `backend/app/models/user.py:44` (après `last_login_at`)
-- Modify: `backend/app/database.py:74` (dans la liste `_MIGRATIONS`)
-- Modify: `backend/app/routes/auth.py:44-51` (fonction `_user_dict`)
+- Modify: `backend/app/models/user.py` (après `last_login_at`)
+- Modify: `backend/app/database.py` (fin de la liste `_MIGRATIONS`)
+- Modify: `backend/app/routes/auth.py:44-51` (`_user_dict`)
 - Test: `backend/tests/test_tutorial_seen.py` (créé)
 
 **Interfaces:**
 - Consumes: rien.
-- Produits pour les tâches suivantes :
-  - `User.tutorial_seen_at: datetime | None` (défaut `None`)
-  - la clé `"tutorial_seen": bool` dans toutes les réponses d'authentification
+- Produits : `User.tutorial_seen_at: datetime | None` ; la clé `"tutorial_seen": bool` dans toutes les réponses d'authentification.
 
 - [ ] **Step 1: Écrire le test qui échoue**
 
@@ -90,11 +92,6 @@ async def test_login_expose_tutorial_seen_faux_par_defaut(client, admin_user):
     assert resp.json()["user"]["tutorial_seen"] is False
 ```
 
-La fixture `admin_user` renvoie un **tuple** `(user, password)` — voir
-`backend/tests/conftest.py:59`. Le décorateur `@pytest.mark.asyncio` est
-explicite dans toute la suite, bien que `asyncio_mode = "auto"` soit actif :
-suivre la convention du dépôt.
-
 - [ ] **Step 2: Lancer le test pour vérifier qu'il échoue**
 
 ```bash
@@ -105,7 +102,7 @@ Attendu : ÉCHEC sur `KeyError: 'tutorial_seen'`.
 
 - [ ] **Step 3: Ajouter la colonne au modèle**
 
-Dans `backend/app/models/user.py`, après le champ `last_login_at` :
+Dans `backend/app/models/user.py`, après `last_login_at` :
 
 ```python
     tutorial_seen_at: Mapped[datetime | None] = mapped_column(
@@ -115,26 +112,25 @@ Dans `backend/app/models/user.py`, après le champ `last_login_at` :
 
 - [ ] **Step 4: Ajouter l'entrée de migration**
 
-Dans `backend/app/database.py`, à la fin de la liste `_MIGRATIONS` :
+À la fin de la liste `_MIGRATIONS` dans `backend/app/database.py` :
 
 ```python
         ("users", "tutorial_seen_at", "DATETIME"),
 ```
 
-Aucun backfill : les comptes existants gardent `NULL` et verront donc
-l'invite, ce qui est voulu.
+Aucun backfill : les comptes existants gardent `NULL` et verront donc l'invite,
+ce qui est voulu.
 
 - [ ] **Step 5: Exposer le booléen**
 
-Dans `backend/app/routes/auth.py`, fonction `_user_dict`, ajouter avant la
-parenthèse fermante :
+Dans `_user_dict` (`backend/app/routes/auth.py`), ajouter :
 
 ```python
         "tutorial_seen": user.tutorial_seen_at is not None,
 ```
 
-`_user_dict` est l'unique sérialiseur utilisé par `login`, `refresh`, `setup`,
-`google` et `change_password` : cette seule ligne couvre les cinq.
+`_user_dict` est l'unique sérialiseur de `login`, `refresh`, `setup`, `google`
+et `change_password` : cette seule ligne couvre les cinq.
 
 - [ ] **Step 6: Lancer le test pour vérifier qu'il passe**
 
@@ -150,8 +146,6 @@ Attendu : SUCCÈS.
 cd backend && PATH="/opt/homebrew/bin:$PATH" uv run pytest -q
 ```
 
-Attendu : la suite entière passe.
-
 - [ ] **Step 8: Commit**
 
 ```bash
@@ -164,7 +158,7 @@ git commit -m "feat(aide): colonne tutorial_seen_at exposée dans AuthUser"
 ### Task 2 : Bascule via `PATCH /api/me/preferences`
 
 **Files:**
-- Modify: `backend/app/routes/me.py:122-134` (fonction `update_preferences`)
+- Modify: `backend/app/routes/me.py:122-134` (`update_preferences`)
 - Test: `backend/tests/test_tutorial_seen.py` (complété)
 
 **Interfaces:**
@@ -197,7 +191,7 @@ async def test_preferences_marque_le_tutoriel_comme_vu(
 async def test_preferences_ne_remet_jamais_a_zero(
     client, admin_user, admin_token, db_session
 ):
-    """Écriture seule vers « vu » : relancer le tour ne réarme pas l'invite."""
+    """Écriture seule vers « vu » : relancer le tutoriel ne réarme pas l'invite."""
     user, _ = admin_user
     for payload in ({"tutorial_seen": True}, {"tutorial_seen": False}):
         await client.patch(
@@ -238,13 +232,12 @@ async def test_preferences_conserve_les_notifications_email(
 cd backend && PATH="/opt/homebrew/bin:$PATH" uv run pytest tests/test_tutorial_seen.py -v
 ```
 
-Attendu : les trois nouveaux échouent (`KeyError: 'tutorial_seen'` puis
-`assert None is not None`).
+Attendu : les trois nouveaux échouent.
 
 - [ ] **Step 3: Implémenter**
 
-Dans `backend/app/routes/me.py`, fonction `update_preferences`, après le bloc
-`email_notifications` et avant le `commit` :
+Dans `update_preferences` (`backend/app/routes/me.py`), après le bloc
+`email_notifications` et en remplaçant le `commit` / `return` existants :
 
 ```python
     if data.get("tutorial_seen"):
@@ -256,9 +249,8 @@ Dans `backend/app/routes/me.py`, fonction `update_preferences`, après le bloc
     }
 ```
 
-Le `if data.get(...)` sans `else` est délibéré : l'écriture ne va que vers
-« vu ». `datetime` et `timezone` sont déjà importés en tête du fichier
-(`backend/app/routes/me.py:4`).
+Le `if` sans `else` est délibéré : l'écriture ne va que vers « vu ».
+`datetime` et `timezone` sont déjà importés (`backend/app/routes/me.py:4`).
 
 - [ ] **Step 4: Lancer les tests pour vérifier qu'ils passent**
 
@@ -274,9 +266,8 @@ Attendu : les quatre tests du fichier passent.
 cd backend && PATH="/opt/homebrew/bin:$PATH" uv run pytest -q
 ```
 
-Attendu : suite entière verte. `ProfilePage.tsx` consomme la réponse de ce
-endpoint : la clé `email_notifications` doit rester présente, ce que le
-troisième test garantit.
+`ProfilePage.tsx` consomme ce endpoint : la clé `email_notifications` doit
+rester présente, ce que le troisième test garantit.
 
 - [ ] **Step 6: Commit**
 
@@ -293,22 +284,18 @@ git commit -m "feat(aide): bascule tutorial_seen via les préférences"
 - Modify: `frontend/src/api/client.ts:371-378` (`AuthUser`), `:1008-1012` (`updatePreferences`)
 
 **Interfaces:**
-- Consumes: la clé `tutorial_seen` des réponses d'authentification (Task 1) et du endpoint de préférences (Task 2).
-- Produits :
-  - `AuthUser.tutorial_seen: boolean`
-  - `api.me.updatePreferences(data: { email_notifications?: boolean; tutorial_seen?: boolean }): Promise<{ email_notifications: boolean; tutorial_seen: boolean }>`
+- Consumes: la clé `tutorial_seen` (Tasks 1–2).
+- Produits : `AuthUser.tutorial_seen: boolean` ; `api.me.updatePreferences(data: { email_notifications?: boolean; tutorial_seen?: boolean }): Promise<{ email_notifications: boolean; tutorial_seen: boolean }>`.
 
 - [ ] **Step 1: Étendre `AuthUser`**
 
-Dans `frontend/src/api/client.ts`, interface `AuthUser`, après `has_password` :
+Dans l'interface `AuthUser`, après `has_password` :
 
 ```ts
   tutorial_seen: boolean;
 ```
 
 - [ ] **Step 2: Élargir la signature de `updatePreferences`**
-
-Remplacer le bloc `updatePreferences` par :
 
 ```ts
     updatePreferences: (data: {
@@ -324,16 +311,14 @@ Remplacer le bloc `updatePreferences` par :
       ),
 ```
 
-Les deux champs deviennent optionnels : `ProfilePage.tsx:25` appelle déjà avec
-le seul `email_notifications` et continue de compiler.
+Les deux champs deviennent optionnels : `ProfilePage.tsx:25` appelle avec le
+seul `email_notifications` et continue de compiler.
 
 - [ ] **Step 3: Vérifier la compilation**
 
 ```bash
 cd frontend && PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit
 ```
-
-Attendu : aucune erreur.
 
 - [ ] **Step 4: Commit**
 
@@ -357,10 +342,7 @@ git commit -m "feat(aide): types frontend pour tutorial_seen"
   - `const CHAPTERS: Chapter[]`
   - `function chaptersFor(audience: Audience): Chapter[]`
 
-- [ ] **Step 1: Créer le squelette et les illustrations**
-
-Créer `frontend/src/help/content.tsx`. Commencer par les types et deux
-illustrations réutilisables :
+- [ ] **Step 1: Créer le fichier avec types et illustrations**
 
 ```tsx
 import type { ReactNode } from "react";
@@ -465,11 +447,6 @@ function ScoreRowFigure() {
 
 - [ ] **Step 2: Rédiger les chapitres du parcours club**
 
-Ajouter à la suite, dans le même fichier. Le corps de chaque chapitre est du
-JSX ; utiliser `<p className="text-sm text-on-surface-variant mb-3">` pour les
-paragraphes et `<h3 className="font-headline font-bold text-on-surface text-sm mt-4 mb-2">`
-pour les sous-titres.
-
 ```tsx
 const CLUB: Audience[] = ["club"];
 const TOUS: Audience[] = ["club", "skater"];
@@ -488,9 +465,9 @@ const CHAPITRES_CLUB: Chapter[] = [
           techniques, comparaison au sein du club.
         </p>
         <p className="text-sm text-on-surface-variant mb-3">
-          Le menu de gauche donne accès aux quatre grandes sections. La barre du
-          haut affiche le titre de la page courante, vos notifications et ce
-          menu d'aide.
+          Le menu de gauche donne accès aux grandes sections. La barre du haut
+          affiche le titre de la page courante, vos notifications et ce menu
+          d'aide.
         </p>
         <Figure caption="Le menu de navigation, ici sur le tableau de bord.">
           <SidebarFigure />
@@ -506,12 +483,15 @@ const CHAPITRES_CLUB: Chapter[] = [
     body: () => (
       <>
         <p className="text-sm text-on-surface-variant mb-3">
-          Le tableau de bord est la page d'accueil. Il résume l'activité
-          récente du club : dernières compétitions importées, patineurs suivis,
-          et indicateurs de saison.
+          Le tableau de bord est la page d'accueil. Il résume la saison : nombre
+          de patineurs actifs, compétitions suivies, programmes notés et
+          podiums.
         </p>
         <p className="text-sm text-on-surface-variant mb-3">
-          Chaque bloc est cliquable et mène à la section correspondante.
+          En dessous, les meilleurs scores de la saison, les progressions les
+          plus fortes, les médailles et les compétitions récentes. Le sélecteur
+          en haut à droite change de saison, et le bouton voisin exporte un
+          rapport de saison en PDF.
         </p>
       </>
     ),
@@ -531,9 +511,9 @@ const CHAPITRES_CLUB: Chapter[] = [
           La page d'analyse
         </h3>
         <p className="text-sm text-on-surface-variant mb-3">
-          Elle réunit l'évolution des scores au fil de la saison, la
-          répartition des composantes de programme, et le détail des éléments
-          techniques avec leur note d'exécution.
+          Elle réunit l'évolution des scores au fil de la saison, la répartition
+          des composantes de programme, et le détail des éléments techniques
+          avec leur note d'exécution.
         </p>
         <Figure caption="Extrait du détail technique : note de base, GOE, et total par élément.">
           <ScoreRowFigure />
@@ -617,7 +597,7 @@ const CHAPITRES_CLUB: Chapter[] = [
 ];
 ```
 
-- [ ] **Step 3: Rédiger les chapitres du parcours patineur**
+- [ ] **Step 3: Rédiger les chapitres du parcours patineur et exporter**
 
 ```tsx
 const CHAPITRES_PATINEUR: Chapter[] = [
@@ -648,8 +628,8 @@ const CHAPITRES_PATINEUR: Chapter[] = [
     body: () => (
       <p className="text-sm text-on-surface-variant mb-3">
         La page réunit les compétitions disputées, le score obtenu à chacune, et
-        le détail de chaque programme. Les graphiques montrent l'évolution au fil
-        de la saison.
+        le détail de chaque programme. Les graphiques montrent l'évolution au
+        fil de la saison.
       </p>
     ),
   },
@@ -661,10 +641,10 @@ const CHAPITRES_PATINEUR: Chapter[] = [
     body: () => (
       <>
         <p className="text-sm text-on-surface-variant mb-3">
-          Une note se compose de deux parties : la <strong>note technique</strong>,
-          qui additionne la valeur des éléments réalisés, et les{" "}
-          <strong>composantes de programme</strong>, qui évaluent la
-          présentation d'ensemble.
+          Une note se compose de deux parties : la{" "}
+          <strong>note technique</strong>, qui additionne la valeur des éléments
+          réalisés, et les <strong>composantes de programme</strong>, qui
+          évaluent la présentation d'ensemble.
         </p>
         <h3 className="font-headline font-bold text-on-surface text-sm mt-4 mb-2">
           La note technique
@@ -692,7 +672,7 @@ const CHAPITRES_PATINEUR: Chapter[] = [
     id: "mon-compte",
     title: "Mon compte et mes patineurs",
     icon: "account_circle",
-    audience: ["skater"],
+    audience: TOUS,
     body: () => (
       <>
         <p className="text-sm text-on-surface-variant mb-3">
@@ -717,13 +697,14 @@ export function chaptersFor(audience: Audience): Chapter[] {
 }
 ```
 
+Noter que `mon-compte` et `comprendre-les-scores` sont en `TOUS` : les étapes
+du parcours club y renvoient aussi.
+
 - [ ] **Step 4: Vérifier la compilation**
 
 ```bash
 cd frontend && PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit
 ```
-
-Attendu : aucune erreur.
 
 - [ ] **Step 5: Commit**
 
@@ -734,21 +715,23 @@ git commit -m "feat(aide): chapitres de documentation et illustrations"
 
 ---
 
-### Task 5 : Définition des étapes du tour
+### Task 5 : Registre des étapes par route
 
 **Files:**
 - Create: `frontend/src/help/tour.ts`
 
 **Interfaces:**
-- Consumes: `Audience` depuis `./content` (Task 4).
+- Consumes: `Audience` depuis `./content` (Task 4), `matchPath` de `react-router-dom`.
 - Produits :
   - `type TourStep = { target: string; title: string; body: string; chapterId?: string; audience: Audience[] }`
-  - `const TOUR_STEPS: TourStep[]`
-  - `function stepsFor(audience: Audience): TourStep[]` — filtre par audience **puis** par présence de la cible dans le DOM.
+  - `type ScreenTour = { pattern: string; label: string; steps: TourStep[] }`
+  - `const SCREEN_TOURS: ScreenTour[]`
+  - `function screenTourFor(pathname: string, audience: Audience): { pattern: string; label: string; steps: TourStep[] } | null` — résout la route, filtre par audience **et** par présence de la cible dans le DOM.
 
-- [ ] **Step 1: Créer le fichier**
+- [ ] **Step 1: Créer les types et le registre du shell**
 
 ```ts
+import { matchPath } from "react-router-dom";
 import type { Audience } from "./content";
 
 export type TourStep = {
@@ -761,54 +744,34 @@ export type TourStep = {
   audience: Audience[];
 };
 
-const TOUS: Audience[] = ["club", "skater"];
+export type ScreenTour = {
+  /** Motif de route au sens de React Router (`matchPath`). */
+  pattern: string;
+  /** Nom de l'écran, affiché dans la pastille de rappel. */
+  label: string;
+  steps: TourStep[];
+};
 
-export const TOUR_STEPS: TourStep[] = [
+const TOUS: Audience[] = ["club", "skater"];
+const CLUB: Audience[] = ["club"];
+const SKATER: Audience[] = ["skater"];
+
+/** Étapes communes à tous les écrans : les repères du shell. Elles ouvrent le
+ *  mini-parcours du premier écran visité, puis ne sont plus rejouées — d'où
+ *  leur présence dans le seul jeu du tableau de bord et de la page patineur,
+ *  qui sont les deux points d'entrée possibles. */
+const REPERES: TourStep[] = [
   {
     target: "sidebar-nav",
     title: "Le menu de navigation",
     body: "Toutes les sections de l'application sont ici. Le menu se replie avec la flèche en bas pour gagner de la place.",
     chapterId: "premiers-pas",
-    audience: ["club"],
-  },
-  {
-    target: "sidebar-nav",
-    title: "Votre espace",
-    body: "Ce menu mène à la page de votre patineur. Si plusieurs patineurs sont rattachés à votre compte, il affiche la liste.",
-    chapterId: "bienvenue",
-    audience: ["skater"],
-  },
-  {
-    target: "nav-patineurs",
-    title: "Les patineurs",
-    body: "La liste des patineurs du club. Un clic sur un nom ouvre sa page d'analyse : évolution des scores et détail des éléments.",
-    chapterId: "patineurs",
-    audience: ["club"],
-  },
-  {
-    target: "nav-competitions",
-    title: "Les compétitions",
-    body: "Les compétitions importées et leurs résultats. C'est aussi d'ici que de nouveaux résultats sont récupérés.",
-    chapterId: "competitions",
-    audience: ["club"],
-  },
-  {
-    target: "nav-club",
-    title: "Les statistiques du club",
-    body: "Une vue d'ensemble sur la saison ou sur une compétition : participations, scores moyens, comparaisons.",
-    chapterId: "statistiques-club",
-    audience: ["club"],
-  },
-  {
-    target: "topbar-title",
-    title: "Où vous êtes",
-    body: "Le titre rappelle la page courante. Sur mobile, le bouton à sa gauche ouvre le menu de navigation.",
-    audience: TOUS,
+    audience: CLUB,
   },
   {
     target: "notifications",
     title: "Vos notifications",
-    body: "La cloche signale les nouveautés qui vous concernent : résultats d'une compétition, bilan d'entraînement. La pastille indique le nombre de messages non lus.",
+    body: "La cloche signale les nouveautés qui vous concernent. La pastille indique le nombre de messages non lus.",
     audience: TOUS,
   },
   {
@@ -825,86 +788,328 @@ export const TOUR_STEPS: TourStep[] = [
     audience: TOUS,
   },
 ];
+```
 
-/** Filtre par parcours, puis élimine les étapes dont la cible n'est pas à
- *  l'écran. Ce second filtre absorbe les différences de rôle — pas de lien
- *  « Compétitions » pour un compte patineur, pas d'« Entraînement » si le
- *  suivi est désactivé — sans dupliquer aucune liste de rôles. */
-export function stepsFor(audience: Audience): TourStep[] {
-  return TOUR_STEPS.filter(
+- [ ] **Step 2: Déclarer les écrans**
+
+À la suite, dans le même fichier. L'ordre compte : `matchPath` est essayé
+motif par motif et le premier qui matche gagne, donc les motifs spécifiques
+précèdent les génériques.
+
+```ts
+export const SCREEN_TOURS: ScreenTour[] = [
+  {
+    pattern: "/patineurs/:id/analyse",
+    label: "l'analyse d'un patineur",
+    steps: [
+      {
+        target: "analyse-entete",
+        title: "La fiche du patineur",
+        body: "Nom, club et catégorie du patineur, avec le sélecteur de saison pour changer de période.",
+        chapterId: "page-patineur",
+        audience: SKATER,
+      },
+      {
+        target: "analyse-entete",
+        title: "La fiche du patineur",
+        body: "Nom, club et catégorie, avec le sélecteur de saison. Le bouton d'export produit un rapport PDF.",
+        chapterId: "patineurs",
+        audience: CLUB,
+      },
+      {
+        target: "analyse-evolution",
+        title: "L'évolution des scores",
+        body: "Chaque point est une compétition. La courbe montre la progression au fil de la saison.",
+        chapterId: "comprendre-les-scores",
+        audience: TOUS,
+      },
+      {
+        target: "analyse-elements",
+        title: "Le détail technique",
+        body: "Chaque élément réalisé, sa valeur de base et la note d'exécution attribuée par les juges.",
+        chapterId: "comprendre-les-scores",
+        audience: TOUS,
+      },
+    ],
+  },
+  {
+    pattern: "/patineurs",
+    label: "la liste des patineurs",
+    steps: [
+      {
+        target: "patineurs-liste",
+        title: "Les patineurs du club",
+        body: "La liste de tous les patineurs connus. Un clic sur une ligne ouvre la page d'analyse correspondante.",
+        chapterId: "patineurs",
+        audience: CLUB,
+      },
+    ],
+  },
+  {
+    pattern: "/competitions",
+    label: "les compétitions",
+    steps: [
+      {
+        target: "competitions-import",
+        title: "Importer une compétition",
+        body: "Collez ici l'adresse du site de la compétition : l'application récupère les feuilles de notes et en extrait les scores.",
+        chapterId: "competitions",
+        audience: CLUB,
+      },
+      {
+        target: "competitions-liste",
+        title: "Les compétitions importées",
+        body: "Chaque compétition peut être ouverte pour voir ses résultats, ou réimportée si le site a été mis à jour.",
+        chapterId: "competitions",
+        audience: CLUB,
+      },
+    ],
+  },
+  {
+    pattern: "/club/saison",
+    label: "les statistiques du club",
+    steps: [
+      {
+        target: "club-onglets",
+        title: "Saison ou compétition",
+        body: "Ces onglets basculent entre la vue d'ensemble de la saison et l'analyse d'une compétition précise.",
+        chapterId: "statistiques-club",
+        audience: CLUB,
+      },
+      {
+        target: "club-contenu",
+        title: "Les chiffres du club",
+        body: "Participations, scores moyens par catégorie et comparaisons entre patineurs sur la période choisie.",
+        chapterId: "statistiques-club",
+        audience: CLUB,
+      },
+    ],
+  },
+  {
+    pattern: "/programme",
+    label: "le constructeur de programme",
+    steps: [
+      {
+        target: "programme-contenu",
+        title: "Composer un programme",
+        body: "Ajoutez les éléments un à un : l'application calcule la note technique attendue et signale les écarts aux règles de la catégorie.",
+        chapterId: "programme",
+        audience: CLUB,
+      },
+    ],
+  },
+  {
+    pattern: "/entrainement",
+    label: "le suivi d'entraînement",
+    steps: [
+      {
+        target: "entrainement-contenu",
+        title: "Le suivi d'entraînement",
+        body: "Chaque patineur suivi dispose d'un journal : séances, ressenti, incidents et bilans de l'entraîneur.",
+        chapterId: "entrainement",
+        audience: CLUB,
+      },
+    ],
+  },
+  {
+    pattern: "/mes-patineurs",
+    label: "mes patineurs",
+    steps: [
+      {
+        target: "mes-patineurs-liste",
+        title: "Vos patineurs",
+        body: "Les patineurs rattachés à votre compte. Un clic ouvre la page de l'un d'eux.",
+        chapterId: "mon-compte",
+        audience: SKATER,
+      },
+      {
+        target: "mes-patineurs-ajout",
+        title: "Rattacher un patineur",
+        body: "Si un second enfant prend une licence, rattachez-le avec son numéro de licence et sa date de naissance.",
+        chapterId: "mon-compte",
+        audience: SKATER,
+      },
+    ],
+  },
+  {
+    pattern: "/profil",
+    label: "mon compte",
+    steps: [
+      {
+        target: "profil-contenu",
+        title: "Votre compte",
+        body: "Changez ici votre mot de passe et choisissez si vous souhaitez recevoir des notifications par courriel.",
+        chapterId: "mon-compte",
+        audience: TOUS,
+      },
+    ],
+  },
+  {
+    pattern: "/",
+    label: "le tableau de bord",
+    steps: [
+      ...REPERES,
+      {
+        target: "accueil-indicateurs",
+        title: "Les indicateurs de la saison",
+        body: "Patineurs actifs, compétitions suivies, programmes notés et podiums, pour la saison sélectionnée.",
+        chapterId: "tableau-de-bord",
+        audience: CLUB,
+      },
+      {
+        target: "accueil-saison",
+        title: "Changer de saison",
+        body: "Ce sélecteur rejoue toute la page sur une autre saison. Le bouton voisin exporte un rapport PDF.",
+        chapterId: "tableau-de-bord",
+        audience: CLUB,
+      },
+      {
+        target: "accueil-scores",
+        title: "Les meilleurs scores",
+        body: "Les plus hauts totaux de la saison. Un clic mène à la compétition correspondante.",
+        chapterId: "tableau-de-bord",
+        audience: CLUB,
+      },
+    ],
+  },
+];
+```
+
+Le motif `/` est en dernier : `matchPath("/", "/patineurs")` ne matche pas en
+React Router 6 (le motif est exact par défaut), mais l'ordre reste la garantie
+la plus lisible.
+
+Les étapes `REPERES` ne figurent que dans le jeu du tableau de bord. Pour le
+parcours patineur, dont le point d'entrée est la page d'analyse, elles sont
+ajoutées au même endroit à l'étape suivante.
+
+- [ ] **Step 3: Ajouter les repères au point d'entrée du parcours patineur**
+
+Un compte `skater` n'atteint jamais `/` (il est redirigé). Ses repères de shell
+doivent donc s'attacher à sa page d'entrée. Dans l'entrée
+`/patineurs/:id/analyse`, préfixer les étapes par celles des repères réservées
+au parcours patineur :
+
+```ts
+    steps: [
+      {
+        target: "sidebar-nav",
+        title: "Votre espace",
+        body: "Ce menu mène à la page de votre patineur. Si plusieurs patineurs sont rattachés à votre compte, il affiche la liste.",
+        chapterId: "bienvenue",
+        audience: SKATER,
+      },
+      ...REPERES.filter((s) => s.target !== "sidebar-nav" && s.audience.includes("skater")),
+      // ... puis les étapes propres à l'écran, déjà écrites au Step 2
+    ],
+```
+
+Un compte « club » qui ouvre d'abord une page d'analyse ne verra pas les
+repères ici — il les verra en revenant au tableau de bord. C'est acceptable :
+le tableau de bord est sa page d'accueil et son point d'entrée normal.
+
+- [ ] **Step 4: Écrire la résolution de route**
+
+À la fin du fichier :
+
+```ts
+/** Résout la route courante dans le registre, puis filtre les étapes : par
+ *  parcours, et par présence effective de la cible dans le DOM. Ce second
+ *  filtre est indispensable — le tableau de bord ne rend ses indicateurs que
+ *  lorsque des données existent, donc sur une installation neuve la moitié des
+ *  ancres manquent. */
+export function screenTourFor(
+  pathname: string,
+  audience: Audience
+): ScreenTour | null {
+  const screen = SCREEN_TOURS.find((s) => matchPath(s.pattern, pathname));
+  if (!screen) return null;
+
+  const steps = screen.steps.filter(
     (s) =>
       s.audience.includes(audience) &&
       document.querySelector(`[data-tour="${s.target}"]`) !== null
   );
+
+  if (steps.length === 0) return null;
+  return { ...screen, steps };
+}
+
+/** Le motif de route de l'écran courant, indépendamment de ses étapes : sert à
+ *  mémoriser qu'un écran a été vu même quand toutes ses étapes ont été
+ *  filtrées. */
+export function screenPatternFor(pathname: string): string | null {
+  return SCREEN_TOURS.find((s) => matchPath(s.pattern, pathname))?.pattern ?? null;
 }
 ```
 
-Noter que `mon-compte` n'existe que pour le parcours patineur dans
-`content.tsx` : pour un utilisateur « club », l'étape s'affichera sans le lien
-« En savoir plus ». C'est géré en Task 7 (le lien n'est rendu que si le
-chapitre existe dans le parcours courant).
-
-- [ ] **Step 2: Vérifier la compilation**
+- [ ] **Step 5: Vérifier la compilation**
 
 ```bash
 cd frontend && PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit
 ```
 
-Attendu : aucune erreur.
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add frontend/src/help/tour.ts
-git commit -m "feat(aide): définition des étapes du tutoriel"
+git commit -m "feat(aide): registre des étapes du tutoriel par écran"
 ```
 
 ---
 
-### Task 6 : Le contexte `HelpProvider`
+### Task 6 : Le contexte `HelpProvider` et le mode tutoriel
 
 **Files:**
 - Create: `frontend/src/help/HelpContext.tsx`
 
 **Interfaces:**
-- Consumes: `useAuth()` (`frontend/src/auth/AuthContext.tsx`), `api.me.updatePreferences` (Task 3), `chaptersFor` / `Chapter` / `Audience` (Task 4), `stepsFor` / `TourStep` (Task 5).
-- Produits : `HelpProvider` (props : `{ passwordModalOpen: boolean; children: ReactNode }`) et `useHelp()` renvoyant :
+- Consumes: `useAuth()`, `useLocation()`, `api.me.updatePreferences` (Task 3), `chaptersFor` / `Chapter` / `Audience` (Task 4), `screenTourFor` / `screenPatternFor` / `TourStep` (Task 5).
+- Produits : `HelpProvider` (props `{ passwordModalOpen: boolean; children: ReactNode }`) et `useHelp()` renvoyant :
 
 ```ts
 {
   audience: Audience;
-  chapters: Chapter[];          // déjà filtrés par audience
-  docChapterId: string | null;  // null = panneau fermé
+  chapters: Chapter[];
+  docChapterId: string | null;
   openDoc: (chapterId?: string) => void;
   closeDoc: () => void;
-  tourSteps: TourStep[];        // figées au démarrage du tour
-  tourIndex: number;            // -1 = tour inactif
-  tourActive: boolean;
+  tourMode: boolean;            // le mode persistant est-il actif ?
   startTour: () => void;
+  endTour: () => void;          // « Terminer le tutoriel » : persiste tutorial_seen
+  steps: TourStep[];            // étapes de l'écran courant, [] si overlay fermé
+  stepIndex: number;
+  overlayVisible: boolean;
   nextStep: () => void;
   prevStep: () => void;
-  stopTour: () => void;
+  closeOverlay: () => void;     // ferme et marque l'écran vu, sans quitter le mode
+  replayScreen: () => void;     // rejoue l'écran courant
+  currentScreenLabel: string | null;
+  hasStepsHere: boolean;
   tourSeen: boolean;
   inviteOpen: boolean;
   dismissInvite: () => void;
 }
 ```
 
-- [ ] **Step 1: Créer le fichier**
+- [ ] **Step 1: Créer le fichier — état et dérivations**
 
 ```tsx
 import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
+import { useLocation } from "react-router-dom";
 import { api } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
 import { chaptersFor, type Audience, type Chapter } from "./content";
-import { stepsFor, type TourStep } from "./tour";
+import { screenPatternFor, screenTourFor, type TourStep } from "./tour";
 
 interface HelpState {
   audience: Audience;
@@ -912,13 +1117,18 @@ interface HelpState {
   docChapterId: string | null;
   openDoc: (chapterId?: string) => void;
   closeDoc: () => void;
-  tourSteps: TourStep[];
-  tourIndex: number;
-  tourActive: boolean;
+  tourMode: boolean;
   startTour: () => void;
+  endTour: () => void;
+  steps: TourStep[];
+  stepIndex: number;
+  overlayVisible: boolean;
   nextStep: () => void;
   prevStep: () => void;
-  stopTour: () => void;
+  closeOverlay: () => void;
+  replayScreen: () => void;
+  currentScreenLabel: string | null;
+  hasStepsHere: boolean;
   tourSeen: boolean;
   inviteOpen: boolean;
   dismissInvite: () => void;
@@ -927,7 +1137,31 @@ interface HelpState {
 const HelpContext = createContext<HelpState | null>(null);
 
 const INVITE_DISMISSED_KEY = "tutorial_invite_dismissed";
+const SCREENS_SEEN_KEY = "tutorial_screens_seen";
+const TOUR_MODE_KEY = "tutorial_mode_active";
 
+function readSeenScreens(): string[] {
+  try {
+    const raw = localStorage.getItem(SCREENS_SEEN_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeSeenScreens(patterns: string[]) {
+  try {
+    localStorage.setItem(SCREENS_SEEN_KEY, JSON.stringify(patterns));
+  } catch {
+    // Navigation privée ou stockage plein : le tutoriel refera l'écran au
+    // rechargement, ce qui est sans gravité.
+  }
+}
+```
+
+- [ ] **Step 2: Écrire le corps du provider**
+
+```tsx
 export function HelpProvider({
   passwordModalOpen,
   children,
@@ -940,9 +1174,14 @@ export function HelpProvider({
   children: ReactNode;
 }) {
   const { user, updateUser } = useAuth();
+  const { pathname } = useLocation();
+
   const [docChapterId, setDocChapterId] = useState<string | null>(null);
-  const [tourSteps, setTourSteps] = useState<TourStep[]>([]);
-  const [tourIndex, setTourIndex] = useState(-1);
+  const [tourMode, setTourMode] = useState(
+    () => sessionStorage.getItem(TOUR_MODE_KEY) === "true"
+  );
+  const [steps, setSteps] = useState<TourStep[]>([]);
+  const [stepIndex, setStepIndex] = useState(0);
   const [inviteDismissed, setInviteDismissed] = useState(
     () => sessionStorage.getItem(INVITE_DISMISSED_KEY) === "true"
   );
@@ -952,17 +1191,19 @@ export function HelpProvider({
   const tourSeen = user?.tutorial_seen === true;
 
   const openDoc = useCallback(
-    (chapterId?: string) => {
-      setDocChapterId(chapterId ?? chapters[0]?.id ?? null);
-    },
+    (chapterId?: string) => setDocChapterId(chapterId ?? chapters[0]?.id ?? null),
     [chapters]
   );
-
   const closeDoc = useCallback(() => setDocChapterId(null), []);
 
-  /** Persiste « vu » et rafraîchit l'utilisateur en mémoire, pour que le
-   *  bouton de démarrage disparaisse sans rechargement. L'échec réseau est
-   *  silencieux : le tour a bien été suivi, seul l'état distant manque. */
+  const markScreenSeen = useCallback((pattern: string) => {
+    const seen = readSeenScreens();
+    if (!seen.includes(pattern)) writeSeenScreens([...seen, pattern]);
+  }, []);
+
+  /** Persiste « vu » et rafraîchit l'utilisateur en mémoire, pour que le bouton
+   *  de démarrage disparaisse sans rechargement. L'échec réseau est silencieux :
+   *  le tutoriel a bien été suivi, seul l'état distant manque. */
   const markSeen = useCallback(async () => {
     if (!user || user.tutorial_seen) return;
     updateUser({ ...user, tutorial_seen: true });
@@ -974,38 +1215,107 @@ export function HelpProvider({
   }, [user, updateUser]);
 
   const startTour = useCallback(() => {
-    const steps = stepsFor(audience);
-    if (steps.length === 0) return;
-    setTourSteps(steps);
-    setTourIndex(0);
+    // Remise à zéro au DÉMARRAGE, pas à la fin : un tutoriel relancé des mois
+    // plus tard doit être complet, pas muet.
+    writeSeenScreens([]);
+    sessionStorage.setItem(TOUR_MODE_KEY, "true");
+    setTourMode(true);
     setDocChapterId(null);
-  }, [audience]);
+    setSteps([]);
+    setStepIndex(0);
+  }, []);
 
-  const stopTour = useCallback(() => {
-    setTourIndex(-1);
-    setTourSteps([]);
+  const endTour = useCallback(() => {
+    sessionStorage.removeItem(TOUR_MODE_KEY);
+    setTourMode(false);
+    setSteps([]);
+    setStepIndex(0);
     void markSeen();
   }, [markSeen]);
 
-  const nextStep = useCallback(() => {
-    setTourIndex((i) => {
-      if (i + 1 >= tourSteps.length) return i; // dernière étape : stopTour s'en charge
-      return i + 1;
-    });
-  }, [tourSteps.length]);
+  const closeOverlay = useCallback(() => {
+    const pattern = screenPatternFor(pathname);
+    if (pattern) markScreenSeen(pattern);
+    setSteps([]);
+    setStepIndex(0);
+  }, [pathname, markScreenSeen]);
 
-  const prevStep = useCallback(() => {
-    setTourIndex((i) => (i > 0 ? i - 1 : i));
-  }, []);
+  const replayScreen = useCallback(() => {
+    const screen = screenTourFor(pathname, audience);
+    if (!screen) return;
+    setSteps(screen.steps);
+    setStepIndex(0);
+  }, [pathname, audience]);
+
+  const nextStep = useCallback(
+    () => setStepIndex((i) => (i + 1 < steps.length ? i + 1 : i)),
+    [steps.length]
+  );
+  const prevStep = useCallback(
+    () => setStepIndex((i) => (i > 0 ? i - 1 : i)),
+    []
+  );
 
   const dismissInvite = useCallback(() => {
     sessionStorage.setItem(INVITE_DISMISSED_KEY, "true");
     setInviteDismissed(true);
   }, []);
 
-  const tourActive = tourIndex >= 0 && tourSteps.length > 0;
+  return null; // remplacé à l'étape suivante
+}
+```
+
+- [ ] **Step 3: Ajouter le déclenchement au changement de route**
+
+Remplacer le `return null;` provisoire par l'effet de déclenchement puis le
+provider. L'effet est le cœur du mode : il réagit à la route, jamais l'inverse.
+
+```tsx
+  // Déclenchement à l'arrivée sur un écran. Le délai laisse la page monter et
+  // ses requêtes se résoudre : sans lui, les ancres d'un écran qui charge ses
+  // données seraient absentes du DOM et toutes les étapes seraient filtrées.
+  const lastHandled = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!tourMode) {
+      lastHandled.current = null;
+      return;
+    }
+    const pattern = screenPatternFor(pathname);
+    if (!pattern || lastHandled.current === pattern) return;
+    if (readSeenScreens().includes(pattern)) {
+      lastHandled.current = pattern;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      const screen = screenTourFor(pathname, audience);
+      lastHandled.current = pattern;
+      if (!screen) {
+        // Aucune étape affichable ici (données absentes, mauvais parcours) :
+        // marquer vu plutôt que d'encadrer le vide.
+        markScreenSeen(pattern);
+        return;
+      }
+      setSteps(screen.steps);
+      setStepIndex(0);
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [tourMode, pathname, audience, markScreenSeen]);
+
+  const overlayVisible = tourMode && steps.length > 0;
+  const currentScreen = useMemo(
+    () => (tourMode ? screenPatternFor(pathname) : null),
+    [tourMode, pathname]
+  );
+  const currentScreenLabel = useMemo(() => {
+    if (!currentScreen) return null;
+    return screenTourFor(pathname, audience)?.label ?? null;
+  }, [currentScreen, pathname, audience]);
+
   const inviteOpen =
-    !passwordModalOpen && !tourSeen && !inviteDismissed && !tourActive;
+    !passwordModalOpen && !tourSeen && !inviteDismissed && !tourMode;
 
   const value: HelpState = {
     audience,
@@ -1013,13 +1323,18 @@ export function HelpProvider({
     docChapterId,
     openDoc,
     closeDoc,
-    tourSteps,
-    tourIndex,
-    tourActive,
+    tourMode,
     startTour,
+    endTour,
+    steps,
+    stepIndex,
+    overlayVisible,
     nextStep,
     prevStep,
-    stopTour,
+    closeOverlay,
+    replayScreen,
+    currentScreenLabel,
+    hasStepsHere: currentScreenLabel !== null,
     tourSeen,
     inviteOpen,
     dismissInvite,
@@ -1035,19 +1350,21 @@ export function useHelp(): HelpState {
 }
 ```
 
-- [ ] **Step 2: Vérifier la compilation**
+Le mode est mémorisé en `sessionStorage` (`TOUR_MODE_KEY`) et non en
+`localStorage` : un tutoriel doit survivre à un rechargement de page, pas à la
+fermeture du navigateur.
+
+- [ ] **Step 4: Vérifier la compilation**
 
 ```bash
 cd frontend && PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit
 ```
 
-Attendu : aucune erreur.
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add frontend/src/help/HelpContext.tsx
-git commit -m "feat(aide): contexte partagé de l'aide et du tutoriel"
+git commit -m "feat(aide): contexte et mode tutoriel persistant"
 ```
 
 ---
@@ -1060,7 +1377,7 @@ git commit -m "feat(aide): contexte partagé de l'aide et du tutoriel"
 
 **Interfaces:**
 - Consumes: `useHelp()` (Task 6).
-- Produits : `DocPanel` et `HelpMenu`, deux composants sans props.
+- Produits : `DocPanel` et `HelpMenu`, sans props.
 
 - [ ] **Step 1: Créer `DocPanel.tsx`**
 
@@ -1171,7 +1488,7 @@ export default function DocPanel() {
 
 - [ ] **Step 2: Créer `HelpMenu.tsx`**
 
-Le pattern de fermeture au clic extérieur reprend celui de
+Le pattern de fermeture au clic extérieur reprend
 `frontend/src/components/NotificationBell.tsx:39-47`.
 
 ```tsx
@@ -1181,7 +1498,7 @@ import { useHelp } from "./HelpContext";
 export default function HelpMenu() {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const { chapters, openDoc, startTour } = useHelp();
+  const { chapters, openDoc, startTour, endTour, tourMode } = useHelp();
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -1223,15 +1540,16 @@ export default function HelpMenu() {
             role="menuitem"
             onClick={() => {
               setOpen(false);
-              startTour();
+              if (tourMode) endTour();
+              else startTour();
             }}
             className="w-full text-left px-4 py-3 hover:bg-surface-container transition-colors flex items-center gap-3"
           >
             <span className="material-symbols-outlined text-lg text-primary shrink-0">
-              play_circle
+              {tourMode ? "stop_circle" : "play_circle"}
             </span>
             <span className="text-sm font-bold text-on-surface">
-              Démarrer le tutoriel
+              {tourMode ? "Terminer le tutoriel" : "Démarrer le tutoriel"}
             </span>
           </button>
 
@@ -1279,8 +1597,6 @@ export default function HelpMenu() {
 cd frontend && PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit
 ```
 
-Attendu : aucune erreur.
-
 - [ ] **Step 4: Commit**
 
 ```bash
@@ -1290,20 +1606,19 @@ git commit -m "feat(aide): menu ? et panneau de documentation"
 
 ---
 
-### Task 8 : La superposition du tutoriel
+### Task 8 : La superposition d'un écran
 
 **Files:**
 - Create: `frontend/src/help/TourOverlay.tsx`
 
 **Interfaces:**
 - Consumes: `useHelp()` (Task 6).
-- Produits : `TourOverlay`, composant sans props.
+- Produits : `TourOverlay`, sans props.
 
 - [ ] **Step 1: Créer le fichier**
 
 Le masque est fait de quatre rectangles autour de la cible plutôt que d'un
-`box-shadow` géant : c'est plus fiable à positionner et la cible reste
-cliquable.
+`box-shadow` géant : plus fiable à positionner, et la cible reste cliquable.
 
 ```tsx
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -1311,24 +1626,24 @@ import { useHelp } from "./HelpContext";
 
 type Rect = { top: number; left: number; width: number; height: number };
 
-const PAD = 6;      // marge du surlignage autour de la cible
+const PAD = 6;       // marge du surlignage autour de la cible
 const BUBBLE_W = 320;
-const GAP = 12;     // écart entre la cible et la bulle
+const GAP = 12;      // écart entre la cible et la bulle
 
 export default function TourOverlay() {
   const {
-    tourActive,
-    tourSteps,
-    tourIndex,
+    overlayVisible,
+    steps,
+    stepIndex,
     nextStep,
     prevStep,
-    stopTour,
+    closeOverlay,
     openDoc,
     chapters,
   } = useHelp();
   const [rect, setRect] = useState<Rect | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
-  const step = tourActive ? tourSteps[tourIndex] : null;
+  const step = overlayVisible ? steps[stepIndex] : null;
 
   const measure = useCallback(() => {
     if (!step) return;
@@ -1351,33 +1666,34 @@ export default function TourOverlay() {
   }, [step, measure]);
 
   useEffect(() => {
-    if (!tourActive) return;
+    if (!overlayVisible) return;
     window.addEventListener("resize", measure, { passive: true });
     window.addEventListener("scroll", measure, { passive: true });
     return () => {
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", measure);
     };
-  }, [tourActive, measure]);
+  }, [overlayVisible, measure]);
 
   // Le focus part sur la bulle à chaque étape : le lecteur d'écran annonce le
   // nouveau contenu, et Tab reste dans la bulle.
   useEffect(() => {
-    if (tourActive) bubbleRef.current?.focus();
-  }, [tourActive, tourIndex]);
+    if (overlayVisible) bubbleRef.current?.focus();
+  }, [overlayVisible, stepIndex]);
 
+  // Échap ferme l'explication de cet écran — sans quitter le mode tutoriel.
   useEffect(() => {
-    if (!tourActive) return;
+    if (!overlayVisible) return;
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") stopTour();
+      if (e.key === "Escape") closeOverlay();
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [tourActive, stopTour]);
+  }, [overlayVisible, closeOverlay]);
 
-  if (!tourActive || !step) return null;
+  if (!overlayVisible || !step) return null;
 
-  const isLast = tourIndex === tourSteps.length - 1;
+  const isLast = stepIndex === steps.length - 1;
   const hasChapter =
     step.chapterId !== undefined &&
     chapters.some((c) => c.id === step.chapterId);
@@ -1390,12 +1706,9 @@ export default function TourOverlay() {
     height: 0,
   };
 
-  const spaceBelow = window.innerHeight - (box.top + box.height);
-  const below = spaceBelow > 220;
+  const below = window.innerHeight - (box.top + box.height) > 220;
   const bubbleTop = below ? box.top + box.height + GAP : undefined;
-  const bubbleBottom = below
-    ? undefined
-    : window.innerHeight - box.top + GAP;
+  const bubbleBottom = below ? undefined : window.innerHeight - box.top + GAP;
   const bubbleLeft = Math.min(
     Math.max(GAP, box.left + box.width / 2 - BUBBLE_W / 2),
     window.innerWidth - BUBBLE_W - GAP
@@ -1404,7 +1717,7 @@ export default function TourOverlay() {
   return (
     <div className="fixed inset-0 z-[60]">
       {/* Masque en quatre rectangles autour de la cible. */}
-      <div aria-hidden="true" onClick={stopTour}>
+      <div aria-hidden="true" onClick={closeOverlay}>
         <div
           className="absolute bg-on-surface/60 left-0 right-0 top-0"
           style={{ height: Math.max(0, box.top - PAD) }}
@@ -1431,7 +1744,6 @@ export default function TourOverlay() {
         />
       </div>
 
-      {/* Anneau de surlignage. */}
       {rect && (
         <div
           aria-hidden="true"
@@ -1450,7 +1762,7 @@ export default function TourOverlay() {
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label="Tutoriel"
+        aria-label="Explication de l'écran"
         className="absolute bg-surface rounded-2xl shadow-2xl p-4 focus:outline-none"
         style={{
           width: BUBBLE_W,
@@ -1469,7 +1781,7 @@ export default function TourOverlay() {
         {hasChapter && (
           <button
             onClick={() => {
-              stopTour();
+              closeOverlay();
               openDoc(step.chapterId);
             }}
             className="text-xs text-primary hover:underline mb-3 inline-flex items-center gap-1"
@@ -1483,10 +1795,10 @@ export default function TourOverlay() {
 
         <div className="flex items-center gap-2">
           <span className="text-xs text-on-surface-variant font-mono">
-            {tourIndex + 1} / {tourSteps.length}
+            {stepIndex + 1} / {steps.length}
           </span>
           <div className="flex-1" />
-          {tourIndex > 0 && (
+          {stepIndex > 0 && (
             <button
               onClick={prevStep}
               className="px-3 py-1.5 rounded-xl text-xs font-bold text-on-surface-variant hover:bg-surface-container transition-colors"
@@ -1495,24 +1807,21 @@ export default function TourOverlay() {
             </button>
           )}
           <button
-            onClick={isLast ? stopTour : nextStep}
+            onClick={isLast ? closeOverlay : nextStep}
             className="px-3 py-1.5 bg-primary text-on-primary rounded-xl text-xs font-bold"
           >
-            {isLast ? "Terminer" : "Suivant"}
+            {isLast ? "Terminer cet écran" : "Suivant"}
           </button>
         </div>
-
-        <button
-          onClick={stopTour}
-          className="text-[11px] text-on-surface-variant hover:text-on-surface transition-colors mt-3"
-        >
-          Passer le tutoriel
-        </button>
       </div>
     </div>
   );
 }
 ```
+
+Noter qu'il n'y a plus de « Passer le tutoriel » ici : quitter le tutoriel est
+l'affaire du bandeau, qui est toujours visible. La bulle ne gère que l'écran
+courant.
 
 - [ ] **Step 2: Vérifier la compilation**
 
@@ -1520,18 +1829,115 @@ export default function TourOverlay() {
 cd frontend && PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit
 ```
 
-Attendu : aucune erreur.
-
 - [ ] **Step 3: Commit**
 
 ```bash
 git add frontend/src/help/TourOverlay.tsx
-git commit -m "feat(aide): superposition du tutoriel interactif"
+git commit -m "feat(aide): superposition explicative par écran"
 ```
 
 ---
 
-### Task 9 : Modal d'invite et bouton de démarrage
+### Task 9 : Bandeau et pastille de rappel
+
+**Files:**
+- Create: `frontend/src/help/TourBanner.tsx`
+- Create: `frontend/src/help/TourReminder.tsx`
+
+**Interfaces:**
+- Consumes: `useHelp()` (Task 6).
+- Produits : `TourBanner` et `TourReminder`, sans props.
+
+- [ ] **Step 1: Créer `TourBanner.tsx`**
+
+```tsx
+import { useHelp } from "./HelpContext";
+
+/** Rappelle en permanence que le mode tutoriel est actif, et porte le seul
+ *  bouton qui en sort. Placé dans le flux sous la barre supérieure : un bandeau
+ *  qui recouvrirait l'écran qu'il prétend expliquer serait absurde. */
+export default function TourBanner() {
+  const { tourMode, endTour } = useHelp();
+
+  if (!tourMode) return null;
+
+  return (
+    <div
+      role="status"
+      className="sticky top-[72px] z-20 bg-primary text-on-primary px-4 lg:px-8 py-2.5 flex items-center gap-3"
+    >
+      <span className="material-symbols-outlined text-xl shrink-0">school</span>
+      <p className="text-xs font-medium flex-1 min-w-0 hidden sm:block">
+        Mode tutoriel — les écrans que vous ouvrez vous sont expliqués.
+      </p>
+      <p className="text-xs font-medium flex-1 min-w-0 sm:hidden">
+        Mode tutoriel
+      </p>
+      <button
+        onClick={endTour}
+        className="bg-on-primary text-primary rounded-xl px-3 py-1.5 text-xs font-bold shrink-0"
+      >
+        Terminer le tutoriel
+      </button>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 2: Créer `TourReminder.tsx`**
+
+```tsx
+import { useHelp } from "./HelpContext";
+
+/** Visible quand le mode est actif mais qu'aucune explication n'est à l'écran :
+ *  dit où l'on en est, et permet de rejouer un écran cliqué trop vite. */
+export default function TourReminder() {
+  const { tourMode, overlayVisible, hasStepsHere, replayScreen, currentScreenLabel } =
+    useHelp();
+
+  if (!tourMode || overlayVisible) return null;
+
+  return (
+    <div className="fixed bottom-4 right-4 z-[55] bg-surface-container-lowest rounded-2xl shadow-lg px-4 py-3 max-w-xs">
+      <div className="flex items-center gap-2 mb-1">
+        <span className="material-symbols-outlined text-primary text-lg">
+          school
+        </span>
+        <span className="text-xs font-bold text-on-surface">Tutoriel actif</span>
+      </div>
+      <p className="text-xs text-on-surface-variant">
+        Ouvrez une autre section pour la découvrir.
+      </p>
+      {hasStepsHere && (
+        <button
+          onClick={replayScreen}
+          className="text-xs text-primary hover:underline mt-2 inline-flex items-center gap-1"
+        >
+          <span className="material-symbols-outlined text-sm">replay</span>
+          Revoir {currentScreenLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+```
+
+- [ ] **Step 3: Vérifier la compilation**
+
+```bash
+cd frontend && PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add frontend/src/help/TourBanner.tsx frontend/src/help/TourReminder.tsx
+git commit -m "feat(aide): bandeau du mode tutoriel et pastille de rappel"
+```
+
+---
+
+### Task 10 : Modal d'invite et bouton de démarrage
 
 **Files:**
 - Create: `frontend/src/help/TourInviteModal.tsx`
@@ -1583,9 +1989,9 @@ export default function TourInviteModal() {
           </h2>
         </div>
         <p className="text-sm text-on-surface-variant mb-5">
-          Un tutoriel de quelques étapes vous présente les repères de
-          l'interface. Vous pourrez le relancer à tout moment depuis le menu
-          d'aide, en haut à droite.
+          En mode tutoriel, chaque écran que vous ouvrez vous est expliqué. Vous
+          naviguez librement et vous y mettez fin quand vous le souhaitez, depuis
+          le bandeau en haut de page.
         </p>
         <div className="flex items-center gap-2">
           <button
@@ -1612,21 +2018,18 @@ export default function TourInviteModal() {
 }
 ```
 
-`dismissInvite()` est appelé aussi sur « Démarrer » : cela pose le drapeau de
-session et évite que l'invite ne reparaisse si l'utilisateur quitte le tour
-sans le terminer dans un cas limite.
-
 - [ ] **Step 2: Créer `StartTourButton.tsx`**
 
 ```tsx
 import { useHelp } from "./HelpContext";
 
-/** Visible tant que le tutoriel n'a pas été suivi. Une fois vu, le tutoriel
+/** Visible tant que le tutoriel n'a pas été suivi et que le mode n'est pas
+ *  actif (le bandeau prend alors le relais). Une fois le tutoriel terminé, il
  *  reste accessible depuis le menu « ? ». */
 export default function StartTourButton() {
-  const { tourSeen, tourActive, startTour } = useHelp();
+  const { tourSeen, tourMode, startTour } = useHelp();
 
-  if (tourSeen || tourActive) return null;
+  if (tourSeen || tourMode) return null;
 
   return (
     <button
@@ -1647,44 +2050,43 @@ export default function StartTourButton() {
 cd frontend && PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit
 ```
 
-Attendu : aucune erreur.
-
 - [ ] **Step 4: Commit**
 
 ```bash
 git add frontend/src/help/TourInviteModal.tsx frontend/src/help/StartTourButton.tsx
-git commit -m "feat(aide): modal d'invite et bouton de démarrage du tutoriel"
+git commit -m "feat(aide): modal d'invite et bouton de démarrage"
 ```
 
 ---
 
-### Task 10 : Câblage dans `App.tsx`
+### Task 11 : Câblage dans `App.tsx` et ancres du shell
 
 **Files:**
-- Modify: `frontend/src/App.tsx` — imports, montage du provider, barre supérieure, couches flottantes, 8 attributs `data-tour`
+- Modify: `frontend/src/App.tsx` — imports, provider, barre supérieure, bandeau, couches flottantes, ancres `sidebar-nav`, `notifications`, `user-account`
 
 **Interfaces:**
-- Consumes: tous les composants des tâches 6 à 9.
-- Produits : la fonctionnalité complète en place.
+- Consumes: tous les composants des tâches 6 à 10.
+- Produits : le mode tutoriel opérationnel sur le shell ; les ancres des pages viennent en Task 12.
 
 - [ ] **Step 1: Ajouter les imports**
 
-Après la ligne `import NotificationBell from "./components/NotificationBell";` :
+Après `import NotificationBell from "./components/NotificationBell";` :
 
 ```tsx
 import { HelpProvider } from "./help/HelpContext";
 import HelpMenu from "./help/HelpMenu";
 import DocPanel from "./help/DocPanel";
 import TourOverlay from "./help/TourOverlay";
+import TourBanner from "./help/TourBanner";
+import TourReminder from "./help/TourReminder";
 import TourInviteModal from "./help/TourInviteModal";
 import StartTourButton from "./help/StartTourButton";
 ```
 
 - [ ] **Step 2: Monter le provider**
 
-Dans `AuthenticatedLayout`, le `return` commence par `<JobProvider>` suivi de
-`<div className="flex min-h-screen">`. Insérer `HelpProvider` entre les deux, et
-fermer avant `</JobProvider>` :
+Le `return` de `AuthenticatedLayout` commence par `<JobProvider>` suivi de
+`<div className="flex min-h-screen">`. Insérer `HelpProvider` entre les deux :
 
 ```tsx
     <JobProvider>
@@ -1692,16 +2094,7 @@ fermer avant `</JobProvider>` :
     <div className="flex min-h-screen">
 ```
 
-et, à la fin du composant, remplacer :
-
-```tsx
-      {showPasswordModal && (
-        <ForcePasswordModal onClose={dismissPasswordModal} />
-      )}
-    </JobProvider>
-```
-
-par :
+Et remplacer la fin du composant :
 
 ```tsx
       {showPasswordModal && (
@@ -1709,18 +2102,18 @@ par :
       )}
       <DocPanel />
       <TourOverlay />
+      <TourReminder />
       <TourInviteModal />
     </HelpProvider>
     </JobProvider>
 ```
 
-`showPasswordModal` est déjà calculé plus haut dans le composant : c'est cette
-même valeur qui pilote les deux modals, ce qui garantit qu'ils ne coexistent
-jamais et que l'invite apparaît dès la fermeture du premier.
+`showPasswordModal` est déjà calculé plus haut : c'est cette même valeur qui
+pilote les deux modals, ce qui garantit qu'ils ne coexistent jamais.
 
-- [ ] **Step 3: Compléter la barre supérieure**
+- [ ] **Step 3: Compléter la barre supérieure et poser le bandeau**
 
-Remplacer le bloc `<header>` par :
+Remplacer le bloc `<header>` et ajouter `<TourBanner />` juste après :
 
 ```tsx
         <header className="sticky top-0 bg-surface/70 backdrop-blur-xl z-30 shadow-sm flex items-center gap-3 px-4 lg:px-8 py-4">
@@ -1731,10 +2124,7 @@ Remplacer le bloc `<header>` par :
           >
             <span className="material-symbols-outlined text-2xl">menu</span>
           </button>
-          <h1
-            data-tour="topbar-title"
-            className="font-headline font-bold text-on-surface text-xl truncate flex-1"
-          >
+          <h1 className="font-headline font-bold text-on-surface text-xl truncate flex-1">
             {pageTitle}
           </h1>
           <StartTourButton />
@@ -1743,12 +2133,13 @@ Remplacer le bloc `<header>` par :
             <NotificationBell />
           </div>
         </header>
+        <TourBanner />
 ```
 
 `NotificationBell` gère son propre positionnement relatif ; l'envelopper d'un
 `div` porteur de l'attribut évite de modifier ce composant.
 
-- [ ] **Step 4: Poser les attributs sur la navigation**
+- [ ] **Step 4: Poser les ancres de la sidebar**
 
 Trois `<nav className="flex-1 py-2">` existent (`SkaterNav`, la nav `coach`, la
 nav par défaut). Ajouter `data-tour="sidebar-nav"` **aux trois** :
@@ -1757,33 +2148,7 @@ nav par défaut). Ajouter `data-tour="sidebar-nav"` **aux trois** :
 <nav data-tour="sidebar-nav" className="flex-1 py-2">
 ```
 
-Puis, dans les deux navs qui rendent une liste par `.map(({ to, label, icon, end }) => ...)`
-(la nav `coach` et la nav par défaut), ajouter l'attribut sur le `NavLink` en
-dérivant la valeur du chemin :
-
-```tsx
-              <NavLink
-                key={to}
-                to={to}
-                end={end}
-                data-tour={
-                  to === "/patineurs"
-                    ? "nav-patineurs"
-                    : to === "/competitions"
-                    ? "nav-competitions"
-                    : to === "/club"
-                    ? "nav-club"
-                    : undefined
-                }
-                onClick={closeSidebar}
-```
-
-Le reste des props du `NavLink` (`title`, `className`) est inchangé. Un
-`data-tour` à `undefined` n'émet aucun attribut : les autres liens ne sont pas
-ciblés, et les étapes correspondantes seront simplement sautées si le lien
-n'existe pas pour ce rôle.
-
-- [ ] **Step 5: Poser l'attribut sur le bloc compte**
+- [ ] **Step 5: Poser l'ancre du bloc compte**
 
 Le bas de la sidebar a deux rendus selon `collapsed`. Ajouter
 `data-tour="user-account"` sur le conteneur de chacun :
@@ -1798,8 +2163,7 @@ et
             <div data-tour="user-account" className="flex items-center gap-2 px-4 py-2">
 ```
 
-Un seul des deux est monté à la fois, donc `querySelector` ne trouvera jamais
-d'ambiguïté.
+Un seul des deux est monté à la fois : pas d'ambiguïté pour `querySelector`.
 
 - [ ] **Step 6: Vérifier la compilation et le build**
 
@@ -1807,38 +2171,164 @@ d'ambiguïté.
 cd frontend && PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit && PATH="/opt/homebrew/bin:$PATH" npm run build
 ```
 
-Attendu : aucune erreur, build réussi.
+- [ ] **Step 7: Contrôler la position du bandeau**
 
-- [ ] **Step 7: Vérifier que les 8 ancres sont posées**
-
-```bash
-grep -c 'data-tour=' frontend/src/App.tsx
-grep -o 'data-tour="[a-z-]*"' frontend/src/App.tsx | sort -u
-```
-
-Attendu : `sidebar-nav` (×3), `topbar-title`, `notifications`, `user-account`
-(×2) dans `App.tsx` ; `nav-patineurs`, `nav-competitions` et `nav-club` sont
-produits dynamiquement par l'expression du Step 4 et n'apparaissent pas sous
-cette forme littérale — vérifier leur présence à l'exécution en Task 11.
-`help-menu` est porté par `HelpMenu.tsx`.
+Le bandeau utilise `top-[72px]`, qui suppose une barre supérieure d'environ
+72 px (`py-4` + contenu). Lancer l'app, activer le mode tutoriel, et vérifier
+que le bandeau se colle bien sous la barre sans chevauchement ni interstice.
+Ajuster la valeur si nécessaire et noter la valeur retenue.
 
 - [ ] **Step 8: Commit**
 
 ```bash
 git add frontend/src/App.tsx
-git commit -m "feat(aide): câblage du menu d'aide et du tutoriel dans le shell"
+git commit -m "feat(aide): câblage du mode tutoriel dans le shell"
 ```
 
 ---
 
-### Task 11 : Vérification manuelle et journal de vérification
+### Task 12 : Ancres `data-tour` dans les pages couvertes
+
+**Files:**
+- Modify: `frontend/src/pages/HomePage.tsx` — `accueil-saison`, `accueil-indicateurs`, `accueil-scores`
+- Modify: `frontend/src/pages/SkaterBrowserPage.tsx` — `patineurs-liste`
+- Modify: `frontend/src/pages/SkaterAnalyticsPage.tsx` — `analyse-entete`, `analyse-evolution`, `analyse-elements`
+- Modify: `frontend/src/pages/CompetitionsPage.tsx` — `competitions-import`, `competitions-liste`
+- Modify: `frontend/src/pages/StatsPage.tsx` — `club-contenu`
+- Modify: `frontend/src/components/ClubTabBar.tsx` — `club-onglets`
+- Modify: `frontend/src/pages/ProgramBuilderPage.tsx` — `programme-contenu`
+- Modify: `frontend/src/pages/TrainingPage.tsx` — `entrainement-contenu`
+- Modify: `frontend/src/pages/MySkatersPage.tsx` — `mes-patineurs-liste`, `mes-patineurs-ajout`
+- Modify: `frontend/src/pages/ProfilePage.tsx` — `profil-contenu`
+
+**Interfaces:**
+- Consumes: les `target` déclarés dans `tour.ts` (Task 5).
+- Produits : les 16 ancres de page que le registre attend. Les 4 ancres du
+  shell — `sidebar-nav`, `notifications`, `user-account` (Task 11) et
+  `help-menu` (porté par `HelpMenu.tsx`) — sont déjà en place.
+
+**Règle générale.** Chaque ancre se pose sur le conteneur **le plus englobant**
+de ce que l'étape décrit, jamais sur un élément conditionnel isolé : un
+surlignage doit encadrer un bloc identifiable. Aucune autre modification de ces
+pages n'est autorisée dans cette tâche — uniquement l'ajout d'attributs.
+
+- [ ] **Step 1: `HomePage.tsx`**
+
+Trois ancres, sur les blocs identifiés dans le rendu de `HomePage` :
+
+- `accueil-saison` : le `<div className="flex items-center gap-3">` de l'en-tête
+  qui contient le `<select>` de saison et le bouton « Rapport de saison ».
+- `accueil-indicateurs` : le `<div className="grid grid-cols-1 md:grid-cols-4 gap-6">`
+  qui contient les quatre `<KpiCard>`.
+- `accueil-scores` : le `<div className="lg:col-span-2">` qui contient
+  `<TopScoresTable>` et `<MostImprovedCards>`.
+
+Exemple pour le premier :
+
+```tsx
+        <div data-tour="accueil-saison" className="flex items-center gap-3">
+```
+
+Les deux derniers ne sont rendus que si `dashboard` existe : sur une base vide,
+ils sont absents et les étapes correspondantes seront filtrées — comportement
+voulu.
+
+- [ ] **Step 2: `SkaterBrowserPage.tsx`**
+
+`patineurs-liste` sur le conteneur du tableau
+(`<div className="bg-surface-container-lowest rounded-xl shadow-sm overflow-x-auto">`,
+vers la ligne 73) :
+
+```tsx
+      <div data-tour="patineurs-liste" className="bg-surface-container-lowest rounded-xl shadow-sm overflow-x-auto">
+```
+
+- [ ] **Step 3: `SkaterAnalyticsPage.tsx`**
+
+Lire la page et poser trois ancres :
+
+- `analyse-entete` : le bloc d'en-tête portant le nom du patineur et le
+  sélecteur de saison.
+- `analyse-evolution` : le conteneur du graphique d'évolution des scores
+  (`<ScoreChart>` ou son bloc parent).
+- `analyse-elements` : le conteneur du détail des éléments techniques.
+
+Si la page structure ces zones différemment, poser l'ancre sur le conteneur
+le plus proche qui englobe la zone décrite, et noter le choix dans le message
+de commit.
+
+- [ ] **Step 4: `CompetitionsPage.tsx`**
+
+- `competitions-import` : le formulaire d'import
+  (`<form className="bg-surface-container-lowest rounded-xl shadow-sm p-6 mb-6">`,
+  vers la ligne 227).
+- `competitions-liste` : le conteneur de la liste des compétitions (le bloc qui
+  enveloppe les cartes vers la ligne 488).
+
+Le formulaire d'import n'est rendu que pour un administrateur : un `coach` ou
+un `reader` verra l'étape filtrée, ce qui est le comportement voulu.
+
+- [ ] **Step 5: `StatsPage.tsx` et `ClubTabBar.tsx`**
+
+- `club-onglets` : dans `ClubTabBar.tsx`, sur le conteneur racine des onglets.
+- `club-contenu` : dans `StatsPage.tsx`, sur le premier bloc de contenu
+  (`<div className="bg-surface-container-lowest rounded-xl shadow-sm p-6">`,
+  vers la ligne 314).
+
+- [ ] **Step 6: `ProgramBuilderPage.tsx`, `TrainingPage.tsx`, `ProfilePage.tsx`**
+
+Une ancre chacune, sur le conteneur principal du contenu de la page :
+`programme-contenu`, `entrainement-contenu`, `profil-contenu`. Viser le
+conteneur qui englobe le contenu utile, sous l'en-tête de page.
+
+- [ ] **Step 7: `MySkatersPage.tsx`**
+
+- `mes-patineurs-liste` : le conteneur de la liste des patineurs rattachés (le
+  bloc qui enveloppe les cartes, vers la ligne 175).
+- `mes-patineurs-ajout` : le bloc du formulaire de rattachement
+  (`<... className="bg-surface-container rounded-xl p-5 max-w-md">`, vers la
+  ligne 61).
+
+- [ ] **Step 8: Vérifier que les 20 ancres sont posées**
+
+```bash
+grep -rho 'data-tour="[a-z-]*"' frontend/src | sort -u
+```
+
+Attendu, 20 valeurs distinctes : `accueil-indicateurs`, `accueil-saison`,
+`accueil-scores`, `analyse-elements`, `analyse-entete`, `analyse-evolution`,
+`club-contenu`, `club-onglets`, `competitions-import`, `competitions-liste`,
+`entrainement-contenu`, `help-menu`, `mes-patineurs-ajout`,
+`mes-patineurs-liste`, `notifications`, `patineurs-liste`,
+`profil-contenu`, `programme-contenu`, `sidebar-nav`, `user-account`.
+
+(16 ancres de page + 4 du shell.) Comparer cette liste aux `target` présents
+dans `tour.ts` : toute valeur d'un côté sans correspondance de l'autre est une
+erreur à corriger avant de committer.
+
+- [ ] **Step 9: Vérifier la compilation et le build**
+
+```bash
+cd frontend && PATH="/opt/homebrew/bin:$PATH" npx tsc --noEmit && PATH="/opt/homebrew/bin:$PATH" npm run build
+```
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add frontend/src/pages frontend/src/components/ClubTabBar.tsx
+git commit -m "feat(aide): ancres du tutoriel dans les écrans couverts"
+```
+
+---
+
+### Task 13 : Vérification manuelle et journal
 
 **Files:**
 - Create: `docs/superpowers/plans/2026-09-13-documentation-integree-verification.md`
 
 **Interfaces:**
-- Consumes: l'application complète (Tasks 1–10).
-- Produits : le constat de vérification, à joindre au rapport final.
+- Consumes: l'application complète (Tasks 1–12).
+- Produits : le constat de vérification.
 
 - [ ] **Step 1: Lancer la pile**
 
@@ -1847,12 +2337,7 @@ make dev-backend    # dans un terminal
 make dev-frontend   # dans un autre
 ```
 
-Backend sur `:8000`, frontend sur `:5173`.
-
-- [ ] **Step 2: Vérifier le parcours « club » (compte admin)**
-
-Se connecter avec un compte admin dont `tutorial_seen_at` est `NULL`. Au
-besoin, remettre l'état à zéro :
+- [ ] **Step 2: Remettre l'état à zéro**
 
 ```bash
 docker compose exec backend python -c "
@@ -1866,67 +2351,83 @@ asyncio.run(main())
 "
 ```
 
-Si la pile tourne hors Docker, viser directement le fichier SQLite du backend.
-Penser à vider `sessionStorage` (onglet privé, ou
-`sessionStorage.clear()` en console) puisque l'invite y pose son drapeau.
+Si la pile tourne hors Docker, viser directement le fichier SQLite. Vider
+ensuite `sessionStorage` et `localStorage` (onglet privé, ou
+`sessionStorage.clear(); localStorage.clear()` en console).
 
-Contrôler, dans l'ordre :
+- [ ] **Step 3: Vérifier le parcours « club » (compte admin)**
 
 1. Le modal d'invite s'affiche après connexion.
 2. « Plus tard » le ferme ; le bouton « Tutoriel » est visible dans la barre.
-3. Le bouton lance le tour ; le premier surlignage encadre le menu de gauche.
-4. « Suivant » parcourt toutes les étapes ; le compteur est cohérent.
-5. « En savoir plus » ferme le tour et ouvre le bon chapitre.
-6. `Échap`, la croix, le clic sur le masque et « Terminer » ferment le tour.
-7. Après « Terminer », le bouton « Tutoriel » disparaît.
-8. Après rechargement de la page, il ne revient pas, et l'invite non plus.
-9. Le menu « ? » ouvre chaque chapitre ; la navigation précédent/suivant
-   parcourt le parcours « club » en entier.
+3. Le bouton active le mode : le bandeau apparaît sous la barre supérieure.
+4. Le mini-parcours du tableau de bord démarre ; le premier surlignage encadre
+   le menu de gauche.
+5. « Suivant » parcourt les étapes ; le compteur est cohérent.
+6. « Terminer cet écran » referme l'overlay ; la pastille « Tutoriel actif »
+   apparaît en bas à droite.
+7. Naviguer vers **Patineurs** : un nouvel overlay démarre, propre à cet écran.
+8. Faire de même pour Compétitions, Club, Programme, Entraînement (si activé)
+   et une page d'analyse patineur : chacun a son overlay.
+9. Revenir au tableau de bord : **aucun overlay ne redémarre** (écran déjà vu),
+   la pastille propose « Revoir le tableau de bord ».
+10. Cliquer « Revoir » : le mini-parcours rejoue.
+11. Recharger la page en cours de mode : le bandeau est toujours là, et l'écran
+    courant n'est pas rejoué s'il avait été vu.
+12. « Terminer le tutoriel » : bandeau et pastille disparaissent, le bouton
+    « Tutoriel » de la barre ne revient pas.
+13. Recharger : ni invite, ni bandeau, ni bouton.
 
-- [ ] **Step 3: Vérifier le parcours « patineur »**
+- [ ] **Step 4: Vérifier le parcours « patineur »**
 
-Se connecter avec un compte de rôle `skater` (le remettre lui aussi à `NULL`).
-Contrôler :
+Avec un compte de rôle `skater` (état remis à zéro) :
 
 1. Le menu « ? » ne liste que les chapitres du parcours patineur — aucune
    mention de l'import de compétitions ni de l'administration.
-2. Le tour saute les étapes « Patineurs », « Compétitions » et « Club », dont
-   les liens n'existent pas pour ce rôle : le compteur total est plus petit que
-   pour l'admin, et aucune étape ne surligne le vide.
+2. Le mode démarre sur la page d'analyse du patineur, avec les repères du shell
+   adaptés (« Votre espace ») puis les étapes de la page.
+3. Naviguer vers « Mes patineurs » (si plusieurs patineurs) et « Mon compte » :
+   chacun a son overlay.
+4. Aucune étape ne surligne le vide.
 
-- [ ] **Step 4: Vérifier l'enchaînement avec le modal de mot de passe**
+- [ ] **Step 5: Vérifier l'enchaînement avec le modal de mot de passe**
 
-Depuis l'administration, forcer le changement de mot de passe sur un compte de
-test, puis s'y connecter (`sessionStorage` vidé). Contrôler :
+Forcer le changement de mot de passe sur un compte de test depuis
+l'administration, puis s'y connecter (`sessionStorage` vidé) :
 
-1. Le modal de mot de passe s'affiche **seul** — l'invite du tutoriel n'est pas
-   derrière.
-2. Le fermer par la croix, sans changer le mot de passe : l'invite du tutoriel
+1. Le modal de mot de passe s'affiche **seul**.
+2. Le fermer par la croix sans changer le mot de passe : l'invite du tutoriel
    apparaît immédiatement.
 3. Recommencer en changeant réellement le mot de passe : l'invite apparaît de
    même après la fermeture.
 
-- [ ] **Step 5: Vérifier le responsive**
+- [ ] **Step 6: Vérifier le cas « base vide »**
 
-Réduire la fenêtre sous 640 px. Contrôler que le bouton « Tutoriel » n'affiche
-que son icône, que le panneau de documentation occupe toute la largeur, et que
-la bulle du tour reste entièrement dans l'écran à chaque étape.
+Sur une base sans compétition importée, activer le mode et ouvrir le tableau de
+bord : les étapes dont les ancres n'existent pas (indicateurs, meilleurs
+scores) doivent être **absentes du compteur**, sans cadre autour du vide. Si
+toutes les étapes de l'écran tombent, aucun overlay ne s'affiche et l'écran est
+marqué vu.
 
-- [ ] **Step 6: Consigner le constat**
+- [ ] **Step 7: Vérifier le responsive**
+
+Sous 640 px : le bouton « Tutoriel » n'affiche que son icône, le bandeau garde
+son bouton « Terminer », le panneau de documentation occupe toute la largeur,
+la bulle reste entièrement dans l'écran à chaque étape, et la pastille ne
+recouvre pas un élément essentiel.
+
+- [ ] **Step 8: Consigner le constat**
 
 Écrire `docs/superpowers/plans/2026-09-13-documentation-integree-verification.md`
-avec, pour chacun des points des étapes 2 à 5, le résultat observé. Noter
+avec le résultat observé pour chaque point des étapes 3 à 7. Noter
 explicitement tout écart plutôt que de le corriger en silence.
 
-- [ ] **Step 7: Lancer la suite backend une dernière fois**
+- [ ] **Step 9: Lancer la suite backend une dernière fois**
 
 ```bash
 cd backend && PATH="/opt/homebrew/bin:$PATH" uv run pytest -q
 ```
 
-Attendu : suite entière verte.
-
-- [ ] **Step 8: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add docs/superpowers/plans/2026-09-13-documentation-integree-verification.md
@@ -1937,30 +2438,33 @@ git commit -m "docs(aide): constat de vérification manuelle"
 
 ## Auto-revue
 
-**Couverture du spec.** Chaque section du spec a sa tâche : illustrations JSX
-(Task 4) ; deux parcours et filtrage par `audience` (Tasks 4, 5, 6) ;
-persistance en base et exposition (Tasks 1, 2, 3) ; tour sur une page avec
-renvois (Tasks 5, 8) ; ancrage `data-tour` et saut des cibles absentes
-(Tasks 5, 10) ; séquence d'accueil (Tasks 6, 9, 10) ; comptes existants sans
-backfill (Task 1, Step 4) ; accessibilité (Tasks 7, 8, 9) ; les trois tests
-backend (Tasks 1, 2) ; vérification manuelle (Task 11).
+**Couverture du spec.** Mode persistant et cycle de vie (Task 6) ; registre par
+route avec `matchPath` (Task 5) ; écrans couverts, 7 club + 3 patineur
+(Tasks 5, 12) ; bandeau et « Terminer le tutoriel » (Task 9) ; pastille et
+« Revoir cet écran » (Task 9) ; écrans vus en `localStorage` vidés au démarrage
+(Task 6, Step 2) ; filtrage par audience et par présence DOM (Task 5, Step 4) ;
+illustrations JSX (Task 4) ; persistance `tutorial_seen_at` (Tasks 1–3) ;
+séquence après le modal mot de passe (Tasks 6, 10, 11) ; accessibilité
+(Tasks 7–9) ; les 4 tests backend (Tasks 1–2) ; vérification manuelle
+(Task 13).
 
-**Écart assumé par rapport au spec.** Le spec annonçait trois tests backend ;
-le plan en pose quatre — le quatrième vérifie que `tutorial_seen` n'écrase pas
-`email_notifications`, une régression réelle sur un endpoint partagé avec
-`ProfilePage`.
-
-**Cohérence des types.** `Audience` est défini une fois dans `content.tsx` et
+**Cohérence des types.** `Audience` est défini une fois dans `content.tsx`,
 importé par `tour.ts` et `HelpContext.tsx`. `Chapter.id` alimente
-`TourStep.chapterId`, `openDoc()` et `chapters.findIndex()`. La clé
-`tutorial_seen` porte le même nom du modèle SQLAlchemy à `AuthUser`.
-`stepsFor()` / `chaptersFor()` sont nommés et appelés de façon identique
-partout.
+`TourStep.chapterId`, `openDoc()` et `chapters.findIndex()`. `screenTourFor` et
+`screenPatternFor` sont nommés et appelés de façon identique dans le contexte.
+Les 20 valeurs de `data-tour` sont listées en Task 12 Step 8 et confrontées aux
+`target` de `tour.ts`.
 
-**Conventions de test vérifiées dans le dépôt.** La fixture `admin_user`
-renvoie `(user, password)` et non un `User` (`conftest.py:59`) ; le mot de
-passe est `testpass123` ; `POST /api/auth/login` répond `200`
-(`test_auth.py:11`) ; `@pytest.mark.asyncio` est posé explicitement sur chaque
-test malgré `asyncio_mode = "auto"` ; un test de `PATCH /api/me/preferences`
-existe déjà (`test_notifications.py:177`) et sert de modèle. Les quatre tests
-du plan suivent ces conventions.
+**Points que l'exécutant devra trancher sur pièces.** Trois ancres de
+`SkaterAnalyticsPage` et trois conteneurs principaux (`ProgramBuilderPage`,
+`TrainingPage`, `ProfilePage`) sont décrits par leur rôle plutôt que par une
+ligne exacte : ces pages n'ont pas été lues en détail pendant la rédaction. La
+Task 12 donne la règle de choix (conteneur le plus englobant de ce que l'étape
+décrit) et demande de noter le choix retenu.
+
+**Valeur à confirmer à l'exécution.** Le `top-[72px]` du bandeau dépend de la
+hauteur réelle de la barre supérieure ; la Task 11 Step 7 impose de la vérifier
+à l'écran et d'ajuster.
+
+**Conformité au spec.** Les 4 tests backend et les 10 fichiers frontend du spec
+sont couverts un pour un, `TourBanner.tsx` et `TourReminder.tsx` compris.
