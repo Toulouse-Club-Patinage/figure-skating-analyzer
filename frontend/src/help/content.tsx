@@ -97,7 +97,94 @@ function ScoreRowFigure() {
   );
 }
 
+function TabBarFigure({ tabs, active }: { tabs: string[]; active: string }) {
+  return (
+    <div className="flex gap-0">
+      {tabs.map((t) => (
+        <div
+          key={t}
+          className={`px-4 py-2 text-sm font-semibold border-b-2 ${
+            t === active
+              ? "text-primary border-primary"
+              : "text-on-surface-variant border-transparent"
+          }`}
+        >
+          {t}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Courbe fictive : cinq compétitions, progression irrégulière mais orientée à
+ *  la hausse — de quoi montrer comment se lit le graphique, pas un cas réel. */
+function EvolutionFigure() {
+  const pts = [
+    { x: 10, y: 74 },
+    { x: 70, y: 58 },
+    { x: 130, y: 62 },
+    { x: 190, y: 38 },
+    { x: 250, y: 24 },
+  ];
+  const path = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x} ${p.y}`).join(" ");
+  return (
+    <svg viewBox="0 0 270 100" className="w-full h-24">
+      <line x1="10" y1="90" x2="260" y2="90" stroke="#c1c7ce" strokeWidth="1" />
+      <path d={path} fill="none" stroke="#2e6385" strokeWidth="2.5" />
+      {pts.map((p) => (
+        <circle key={p.x} cx={p.x} cy={p.y} r="3.5" fill="#2e6385" />
+      ))}
+    </svg>
+  );
+}
+
+function KpiFigure() {
+  const kpis = [
+    { icon: "people", value: "34", label: "Patineurs actifs" },
+    { icon: "emoji_events", value: "12", label: "Compétitions" },
+    { icon: "military_tech", value: "7", label: "Podiums" },
+  ];
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {kpis.map((k) => (
+        <div key={k.label} className="bg-surface-container-lowest rounded-lg p-3 shadow-sm">
+          <span className="material-symbols-outlined text-primary text-base">
+            {k.icon}
+          </span>
+          <p className="text-xl font-bold text-on-surface font-mono leading-tight">
+            {k.value}
+          </p>
+          <p className="text-[10px] text-on-surface-variant">{k.label}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function JournalFigure() {
+  const days = [
+    { d: "Lun", mood: "sentiment_satisfied" },
+    { d: "Mar", mood: "sentiment_neutral" },
+    { d: "Mer", mood: "sentiment_satisfied" },
+    { d: "Jeu", mood: "sentiment_very_satisfied" },
+    { d: "Ven", mood: "sentiment_dissatisfied" },
+  ];
+  return (
+    <div className="flex gap-3">
+      {days.map((x) => (
+        <div key={x.d} className="text-center">
+          <p className="text-[10px] text-on-surface-variant mb-1">{x.d}</p>
+          <span className="material-symbols-outlined text-primary text-xl">
+            {x.mood}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const CLUB: Audience[] = ["club"];
+const SKATER: Audience[] = ["skater"];
 const TOUS: Audience[] = ["club", "skater"];
 
 const CHAPITRES_CLUB: Chapter[] = [
@@ -154,19 +241,78 @@ const CHAPITRES_CLUB: Chapter[] = [
       <>
         <p className="text-sm text-on-surface-variant mb-3">
           La section <strong>Patineurs</strong> liste les patineurs connus de
-          l'application. Un clic sur l'un d'eux ouvre sa page d'analyse.
+          l'application, avec un champ de recherche et un bouton pour élargir la
+          liste aux autres clubs. Un clic sur une ligne ouvre la page d'analyse.
         </p>
+
         <h3 className="font-headline font-bold text-on-surface text-sm mt-4 mb-2">
-          La page d'analyse
+          L'en-tête
         </h3>
         <p className="text-sm text-on-surface-variant mb-3">
-          Elle réunit l'évolution des scores au fil de la saison, la répartition
-          des composantes de programme, et le détail des éléments techniques
-          avec leur note d'exécution.
+          Le bandeau coloré porte le nom du patineur, son club, son meilleur
+          score et son nombre de compétitions. À droite, le sélecteur de saison
+          rejoue toute la page sur une autre période, et le bouton voisin
+          exporte un rapport PDF du patineur.
+        </p>
+
+        <h3 className="font-headline font-bold text-on-surface text-sm mt-4 mb-2">
+          Les onglets
+        </h3>
+        <p className="text-sm text-on-surface-variant mb-3">
+          Quand le suivi d'entraînement est activé, la page se divise en
+          onglets. <strong>Compétitions</strong> rassemble les résultats,{" "}
+          <strong>Entraînement</strong> le travail hors compétition. Chaque
+          onglet a son propre contenu : pensez à en changer pour voir le reste.
+        </p>
+        <Figure caption="La barre d'onglets de la page d'analyse, ici sur Compétitions.">
+          <TabBarFigure tabs={["Compétitions", "Entraînement"]} active="Compétitions" />
+        </Figure>
+
+        <h3 className="font-headline font-bold text-on-surface text-sm mt-4 mb-2">
+          L'évolution des scores
+        </h3>
+        <p className="text-sm text-on-surface-variant mb-3">
+          Chaque point du graphique est une compétition, dans l'ordre
+          chronologique. Le menu au-dessus change ce que la courbe trace :
+        </p>
+        <ul className="text-sm text-on-surface-variant mb-3 space-y-1.5 pl-1">
+          <li>
+            <strong>Résultat</strong> — le score total obtenu à chaque
+            compétition.
+          </li>
+          <li>
+            <strong>Segments</strong> — programme court et programme libre
+            séparés, pour voir lequel progresse.
+          </li>
+          <li>
+            <strong>TES</strong> — la seule note technique, sans la
+            présentation.
+          </li>
+          <li>
+            <strong>PCS</strong> — les composantes de programme, avec un filtre
+            court / libre.
+          </li>
+        </ul>
+        <Figure caption="Chaque point est une compétition ; la courbe suit l'ordre chronologique.">
+          <EvolutionFigure />
+        </Figure>
+
+        <h3 className="font-headline font-bold text-on-surface text-sm mt-4 mb-2">
+          Le détail technique
+        </h3>
+        <p className="text-sm text-on-surface-variant mb-3">
+          Sous le graphique, chaque élément réalisé est listé avec sa valeur de
+          base et la note d'exécution des juges. Un tableau complémentaire
+          regroupe les éléments par famille (sauts, pirouettes, séquences) et
+          un graphique montre l'évolution de la valeur de base totale.
         </p>
         <Figure caption="Extrait du détail technique : note de base, GOE, et total par élément.">
           <ScoreRowFigure />
         </Figure>
+        <p className="text-sm text-on-surface-variant mb-3">
+          Un clic sur une compétition de la liste ouvre sa feuille de notes
+          complète, juge par juge.
+        </p>
       </>
     ),
   },
@@ -197,11 +343,52 @@ const CHAPITRES_CLUB: Chapter[] = [
     icon: "bar_chart",
     audience: CLUB,
     body: () => (
-      <p className="text-sm text-on-surface-variant mb-3">
-        La section <strong>Club</strong> agrège les résultats sur la saison ou
-        sur une compétition donnée : nombre de participations, scores moyens par
-        catégorie, et comparaison entre patineurs.
-      </p>
+      <>
+        <p className="text-sm text-on-surface-variant mb-3">
+          La section <strong>Club</strong> regarde les résultats à l'échelle du
+          club plutôt que patineur par patineur. Deux onglets, chacun avec sa
+          propre page.
+        </p>
+        <Figure caption="Les deux onglets de la section Club.">
+          <TabBarFigure tabs={["Saison", "Compétition"]} active="Saison" />
+        </Figure>
+
+        <h3 className="font-headline font-bold text-on-surface text-sm mt-4 mb-2">
+          L'onglet Saison
+        </h3>
+        <p className="text-sm text-on-surface-variant mb-3">
+          Une vue d'ensemble de la saison entière, en trois blocs :
+        </p>
+        <ul className="text-sm text-on-surface-variant mb-3 space-y-1.5 pl-1">
+          <li>
+            <strong>Progression</strong> — l'évolution des scores des patineurs
+            du club au fil de la saison.
+          </li>
+          <li>
+            <strong>Comparaison</strong> — un tableau qui met les patineurs
+            côte à côte sur les mêmes indicateurs.
+          </li>
+          <li>
+            <strong>Maîtrise des éléments</strong> — quels éléments sont
+            réussis et lesquels coûtent des points, avec un taux de réussite
+            des sauts.
+          </li>
+        </ul>
+
+        <h3 className="font-headline font-bold text-on-surface text-sm mt-4 mb-2">
+          L'onglet Compétition
+        </h3>
+        <p className="text-sm text-on-surface-variant mb-3">
+          La même analyse, resserrée sur une compétition que vous choisissez :
+          le <strong>classement Club Challenge</strong>, les{" "}
+          <strong>podiums du club</strong>, et les{" "}
+          <strong>résultats détaillés</strong> de chaque patineur engagé.
+        </p>
+        <p className="text-sm text-on-surface-variant mb-3">
+          C'est la page à ouvrir au retour d'une compétition pour voir ce que le
+          club y a fait.
+        </p>
+      </>
     ),
   },
   {
@@ -223,11 +410,62 @@ const CHAPITRES_CLUB: Chapter[] = [
     icon: "fitness_center",
     audience: CLUB,
     body: () => (
-      <p className="text-sm text-on-surface-variant mb-3">
-        Lorsque le suivi d'entraînement est activé, chaque patineur dispose d'un
-        journal : séances, ressenti, incidents, et bilans réguliers rédigés par
-        l'entraîneur.
-      </p>
+      <>
+        <p className="text-sm text-on-surface-variant mb-3">
+          Le suivi d'entraînement s'active dans l'administration. Une fois en
+          place, il ajoute une section <strong>Entraînement</strong> au menu et
+          un onglet du même nom sur la page de chaque patineur suivi.
+        </p>
+
+        <h3 className="font-headline font-bold text-on-surface text-sm mt-4 mb-2">
+          La section Entraînement
+        </h3>
+        <p className="text-sm text-on-surface-variant mb-3">
+          Elle liste les patineurs suivis et donne l'humeur agrégée de la
+          semaine. Un clic sur un patineur ouvre son suivi détaillé.
+        </p>
+
+        <h3 className="font-headline font-bold text-on-surface text-sm mt-4 mb-2">
+          Les quatre sous-onglets
+        </h3>
+        <ul className="text-sm text-on-surface-variant mb-3 space-y-1.5 pl-1">
+          <li>
+            <strong>Retours</strong> — les bilans hebdomadaires de
+            l'entraîneur, notés sur l'engagement, la progression et l'attitude.
+          </li>
+          <li>
+            <strong>Défis</strong> — les objectifs fixés au patineur, avec leur
+            échéance. Passée la date, un défi sort des défis actifs.
+          </li>
+          <li>
+            <strong>Incidents</strong> — blessures et interruptions, pour
+            garder trace de ce qui explique un creux.
+          </li>
+          <li>
+            <strong>Évolution</strong> — les courbes de progression sur la
+            période suivie.
+          </li>
+        </ul>
+        <Figure caption="Les sous-onglets du suivi d'entraînement, ici sur Retours.">
+          <TabBarFigure
+            tabs={["Retours", "Défis", "Incidents", "Évolution"]}
+            active="Retours"
+          />
+        </Figure>
+
+        <h3 className="font-headline font-bold text-on-surface text-sm mt-4 mb-2">
+          Le journal du patineur
+        </h3>
+        <p className="text-sm text-on-surface-variant mb-3">
+          Le patineur dispose en plus d'un <strong>Journal</strong> : il y note
+          son humeur du jour et remplit une auto-évaluation après ses séances.
+          C'est lui qui l'alimente — vous le consultez. Ce sous-onglet
+          n'apparaît que sur les comptes patineur.
+        </p>
+        <Figure caption="L'humeur quotidienne relevée par le patineur au fil de la semaine.">
+          <JournalFigure />
+        </Figure>
+      </>
     ),
   },
   {
@@ -240,6 +478,21 @@ const CHAPITRES_CLUB: Chapter[] = [
       <p className="text-sm text-on-surface-variant mb-3">
         L'administration regroupe la gestion des comptes, les réglages du club,
         les demandes de création de compte, et le suivi des tâches d'import.
+      </p>
+    ),
+  },
+  {
+    // Version club, volontairement brève : le rattachement d'un patineur par
+    // numéro de licence n'existe que pour les comptes patineur.
+    id: "mon-compte-club",
+    title: "Mon compte",
+    icon: "account_circle",
+    audience: CLUB,
+    body: () => (
+      <p className="text-sm text-on-surface-variant mb-3">
+        Votre compte est accessible en bas du menu de gauche. Vous pouvez y
+        changer votre mot de passe et choisir si vous souhaitez recevoir des
+        notifications par courriel. La déconnexion se trouve juste à côté.
       </p>
     ),
   },
@@ -279,10 +532,12 @@ const CHAPITRES_PATINEUR: Chapter[] = [
     ),
   },
   {
+    // Deux chapitres pour le même sujet : un parent découvre la notation, un
+    // entraîneur la connaît et cherche comment l'application la restitue.
     id: "comprendre-les-scores",
     title: "Comprendre les scores",
     icon: "calculate",
-    audience: TOUS,
+    audience: SKATER,
     body: () => (
       <>
         <p className="text-sm text-on-surface-variant mb-3">
@@ -314,10 +569,67 @@ const CHAPITRES_PATINEUR: Chapter[] = [
     ),
   },
   {
+    id: "comprendre-les-scores-club",
+    title: "Comprendre les scores",
+    icon: "calculate",
+    audience: CLUB,
+    body: () => (
+      <>
+        <p className="text-sm text-on-surface-variant mb-3">
+          Ce chapitre ne réexplique pas la notation ISU, que vous connaissez :
+          il décrit ce que l'application en fait, et où le retrouver.
+        </p>
+
+        <h3 className="font-headline font-bold text-on-surface text-sm mt-4 mb-2">
+          Ce qui est extrait des feuilles de notes
+        </h3>
+        <p className="text-sm text-on-surface-variant mb-3">
+          Pour chaque programme, l'import retient le score total, la note
+          technique et les composantes, puis le détail élément par élément :
+          code de l'élément, valeur de base, GOE, total, et les notes
+          individuelles des juges lorsqu'elles figurent au protocole.
+        </p>
+        <Figure caption="Le détail conservé pour chaque élément d'un programme.">
+          <ScoreRowFigure />
+        </Figure>
+
+        <h3 className="font-headline font-bold text-on-surface text-sm mt-4 mb-2">
+          Comment les scores sont agrégés
+        </h3>
+        <ul className="text-sm text-on-surface-variant mb-3 space-y-1.5 pl-1">
+          <li>
+            <strong>Par patineur</strong> — les compétitions d'une saison
+            forment les courbes d'évolution, déclinables en score total,
+            segments, TES ou PCS.
+          </li>
+          <li>
+            <strong>Par famille d'éléments</strong> — sauts, pirouettes et
+            séquences sont regroupés pour dégager les points forts et les
+            éléments coûteux.
+          </li>
+          <li>
+            <strong>Par club</strong> — la section Club compare les patineurs
+            entre eux sur une saison ou sur une compétition.
+          </li>
+        </ul>
+
+        <h3 className="font-headline font-bold text-on-surface text-sm mt-4 mb-2">
+          Les limites à connaître
+        </h3>
+        <p className="text-sm text-on-surface-variant mb-3">
+          L'application ne recalcule rien : elle restitue ce que le protocole
+          publie. Si une feuille de notes est incomplète ou publiée dans un
+          format inhabituel, le détail peut manquer alors que le score total
+          est correct. Le journal d'import signale ce qui n'a pas pu être lu.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "mon-compte",
     title: "Mon compte et mes patineurs",
     icon: "account_circle",
-    audience: TOUS,
+    audience: SKATER,
     body: () => (
       <>
         <p className="text-sm text-on-surface-variant mb-3">

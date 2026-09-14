@@ -162,19 +162,45 @@ export function HelpProvider({
   // données seraient absentes du DOM et toutes les étapes seraient filtrées.
   const lastHandled = useRef<string | null>(null);
 
+  /** Plusieurs écrans changent de contenu sans changer d'URL : leur onglet vit
+   *  dans un `useState` de la page, que `matchPath` ne voit pas. La page
+   *  annonce l'onglet actif via `data-tour-tab` ; on observe cet attribut pour
+   *  réveiller le déclencheur, sans quoi seul l'onglet ouvert à l'arrivée
+   *  serait expliqué. */
+  const [tabSignal, setTabSignal] = useState(0);
+
+  useEffect(() => {
+    if (!tourMode) return;
+    const observer = new MutationObserver((records) => {
+      if (records.some((r) => r.attributeName === "data-tour-tab")) {
+        setTabSignal((n) => n + 1);
+      }
+    });
+    observer.observe(document.body, {
+      attributes: true,
+      subtree: true,
+      attributeFilter: ["data-tour-tab"],
+    });
+    return () => observer.disconnect();
+  }, [tourMode]);
+
   useEffect(() => {
     if (!tourMode) {
       lastHandled.current = null;
       return;
     }
-    const pattern = screenPatternFor(pathname);
-    if (!pattern || lastHandled.current === pattern) return;
-    if (readSeenScreens().includes(pattern)) {
-      lastHandled.current = pattern;
-      return;
-    }
-
+    // Tout est résolu APRÈS le délai, jamais avant : à ce moment l'effet
+    // s'exécute encore sur l'ancien rendu, donc `data-tour-tab` porterait
+    // l'onglet précédent. Le délai laisse aussi la page monter et ses requêtes
+    // se résoudre avant qu'on cherche les ancres.
     const timer = setTimeout(() => {
+      const pattern = screenPatternFor(pathname);
+      if (!pattern || lastHandled.current === pattern) return;
+      if (readSeenScreens().includes(pattern)) {
+        lastHandled.current = pattern;
+        return;
+      }
+
       const screen = screenTourFor(pathname, audience);
       lastHandled.current = pattern;
       if (!screen) {
@@ -188,7 +214,7 @@ export function HelpProvider({
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [tourMode, pathname, audience, markScreenSeen]);
+  }, [tourMode, pathname, audience, markScreenSeen, tabSignal]);
 
   const overlayVisible = tourMode && steps.length > 0;
   const currentScreen = useMemo(

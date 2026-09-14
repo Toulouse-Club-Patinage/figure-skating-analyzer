@@ -14,10 +14,36 @@ export type TourStep = {
 export type ScreenTour = {
   /** Motif de route au sens de React Router (`matchPath`). */
   pattern: string;
+  /** Onglet concerné, pour les écrans dont le contenu change sans que l'URL
+   *  bouge (onglets portés par un `useState`). La page annonce son onglet
+   *  actif via `data-tour-tab` ; une entrée sans `tab` couvre l'écran quel que
+   *  soit l'onglet, et sert de repli quand aucune entrée ne cible l'onglet
+   *  courant. */
+  tab?: string;
   /** Nom de l'écran, affiché dans la pastille de rappel. */
   label: string;
   steps: TourStep[];
 };
+
+/** Onglet actif déclaré par la page, lu dans le DOM plutôt que remonté par
+ *  React : aucune page n'a ainsi besoin de connaître le contexte d'aide, et
+ *  c'est le même mécanisme que les ancres `data-tour`. */
+function activeTab(): string | null {
+  const el = document.querySelector("[data-tour-tab]");
+  return el?.getAttribute("data-tour-tab") || null;
+}
+
+/** Trouve l'entrée du registre pour une route et un onglet : d'abord l'entrée
+ *  qui cible explicitement cet onglet, sinon celle qui ne cible aucun onglet. */
+function findScreen(pathname: string, tab: string | null): ScreenTour | null {
+  const onRoute = SCREEN_TOURS.filter((s) => matchPath(s.pattern, pathname));
+  if (onRoute.length === 0) return null;
+  if (tab) {
+    const exact = onRoute.find((s) => s.tab === tab);
+    if (exact) return exact;
+  }
+  return onRoute.find((s) => s.tab === undefined) ?? null;
+}
 
 const TOUS: Audience[] = ["club", "skater"];
 const CLUB: Audience[] = ["club"];
@@ -47,23 +73,37 @@ const REPERES: TourStep[] = [
     body: "Ce menu rouvre la documentation et permet de relancer ce tutoriel quand vous le souhaitez.",
     audience: TOUS,
   },
+  // « Mon compte » est dédoublé par parcours : une étape par public, chacune
+  // renvoyant au chapitre écrit pour lui.
   {
     target: "user-account",
     title: "Votre compte",
     body: "Mot de passe, préférences de notification et déconnexion se trouvent ici.",
     chapterId: "mon-compte",
-    audience: TOUS,
+    audience: SKATER,
+  },
+  {
+    target: "user-account",
+    title: "Votre compte",
+    body: "Mot de passe, préférences de notification et déconnexion se trouvent ici.",
+    chapterId: "mon-compte-club",
+    audience: CLUB,
   },
 ];
 
 export const SCREEN_TOURS: ScreenTour[] = [
+  // ── Analyse patineur : trois onglets portés par un `useState`, donc trois
+  // écrans distincts pour le tutoriel. La page annonce l'onglet actif via
+  // `data-tour-tab` ; sans cela le tutoriel ne se déclencherait que sur
+  // l'onglet ouvert à l'arrivée.
   {
     pattern: "/patineurs/:id/analyse",
-    label: "l'analyse d'un patineur",
+    tab: "competitions",
+    label: "l'onglet Compétitions",
     steps: [
       // Un compte `skater` n'atteint jamais `/` (il y est redirigé) : ses
-      // repères de shell s'attachent donc à sa page d'entrée, qui est
-      // celle-ci. Un compte « club » les voit sur le tableau de bord.
+      // repères de shell s'attachent donc à sa page d'entrée. Un compte
+      // « club » les voit sur le tableau de bord.
       {
         target: "sidebar-nav",
         title: "Votre espace",
@@ -91,17 +131,55 @@ export const SCREEN_TOURS: ScreenTour[] = [
       {
         target: "analyse-evolution",
         title: "L'évolution des scores",
-        body: "Chaque point est une compétition. La courbe montre la progression au fil de la saison.",
-        chapterId: "comprendre-les-scores",
+        body: "Chaque point est une compétition. Le sélecteur au-dessus du graphique change ce qui est tracé : score total, segments, note technique ou composantes.",
+        chapterId: "comprendre-les-scores-club",
         audience: CLUB,
       },
       {
         target: "analyse-elements",
         title: "Le détail technique",
         body: "Chaque élément réalisé, sa valeur de base et la note d'exécution attribuée par les juges.",
-        chapterId: "comprendre-les-scores",
+        chapterId: "comprendre-les-scores-club",
         audience: CLUB,
       },
+    ],
+  },
+  {
+    pattern: "/patineurs/:id/analyse",
+    tab: "training",
+    label: "l'onglet Entraînement",
+    steps: [
+      {
+        target: "analyse-training",
+        title: "Le suivi d'entraînement",
+        body: "Cet onglet rassemble le travail hors compétition. Ses sous-onglets découpent le suivi : Retours (les bilans réguliers de l'entraîneur), Défis (les objectifs en cours), Incidents (blessures et interruptions) et Évolution (les courbes de progression).",
+        chapterId: "entrainement",
+        audience: CLUB,
+      },
+      {
+        target: "analyse-training",
+        title: "Votre suivi d'entraînement",
+        body: "Retrouvez ici votre Journal, les Retours de votre entraîneur, vos Défis en cours, les Incidents signalés et vos courbes d'Évolution — un sous-onglet par sujet.",
+        chapterId: "page-patineur",
+        audience: SKATER,
+      },
+    ],
+  },
+  {
+    pattern: "/patineurs/:id/analyse",
+    tab: "journal",
+    label: "l'onglet Journal",
+    steps: [
+      {
+        target: "sidebar-nav",
+        title: "Votre espace",
+        body: "Ce menu mène à la page de votre patineur. Si plusieurs patineurs sont rattachés à votre compte, il affiche la liste.",
+        chapterId: "bienvenue",
+        audience: SKATER,
+      },
+      ...REPERES.filter(
+        (s) => s.target !== "sidebar-nav" && s.audience.includes("skater")
+      ),
       {
         target: "analyse-journal",
         title: "Votre journal",
@@ -115,6 +193,13 @@ export const SCREEN_TOURS: ScreenTour[] = [
         body: "Notez votre ressenti après chaque séance : ces auto-évaluations aident votre entraîneur à suivre votre progression.",
         chapterId: "page-patineur",
         audience: SKATER,
+      },
+      {
+        target: "analyse-journal",
+        title: "Le journal du patineur",
+        body: "Le carnet quotidien du patineur : humeur du jour et auto-évaluations après séance. C'est lui qui les remplit ; vous les consultez.",
+        chapterId: "entrainement",
+        audience: CLUB,
       },
     ],
   },
@@ -269,7 +354,7 @@ export function screenTourFor(
   pathname: string,
   audience: Audience
 ): ScreenTour | null {
-  const screen = SCREEN_TOURS.find((s) => matchPath(s.pattern, pathname));
+  const screen = findScreen(pathname, activeTab());
   if (!screen) return null;
 
   const steps = screen.steps.filter(
@@ -282,9 +367,12 @@ export function screenTourFor(
   return { ...screen, steps };
 }
 
-/** Le motif de route de l'écran courant, indépendamment de ses étapes : sert à
- *  mémoriser qu'un écran a été vu même quand toutes ses étapes ont été
- *  filtrées. */
+/** Clé de l'écran courant — route et, le cas échéant, onglet actif —
+ *  indépendamment de ses étapes : sert à mémoriser qu'un écran a été vu même
+ *  quand toutes ses étapes ont été filtrées. Deux onglets d'une même page sont
+ *  deux écrans distincts : chacun se déclenche et se mémorise pour lui-même. */
 export function screenPatternFor(pathname: string): string | null {
-  return SCREEN_TOURS.find((s) => matchPath(s.pattern, pathname))?.pattern ?? null;
+  const screen = findScreen(pathname, activeTab());
+  if (!screen) return null;
+  return screen.tab ? `${screen.pattern}#${screen.tab}` : screen.pattern;
 }
