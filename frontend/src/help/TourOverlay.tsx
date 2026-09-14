@@ -47,13 +47,32 @@ export default function TourOverlay() {
     measure();
   }, [step, measure]);
 
+  // Le scroll fluide déclenché ci-dessus converge sur plusieurs frames : on
+  // remesure pendant environ 400 ms pour suivre la cible jusqu'à l'arrêt.
+  useEffect(() => {
+    if (!step) return;
+    let frame = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      measure();
+      if (now - start < 400) {
+        frame = requestAnimationFrame(tick);
+      }
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [step, measure]);
+
   useEffect(() => {
     if (!overlayVisible) return;
+    // capture: true — l'évènement scroll ne remonte pas (pas de bubbling), il
+    // faut donc l'écouter en phase de capture pour suivre le défilement d'un
+    // conteneur interne (listes scrollables, corps du panneau de doc).
     window.addEventListener("resize", measure, { passive: true });
-    window.addEventListener("scroll", measure, { passive: true });
+    window.addEventListener("scroll", measure, { passive: true, capture: true });
     return () => {
       window.removeEventListener("resize", measure);
-      window.removeEventListener("scroll", measure);
+      window.removeEventListener("scroll", measure, { capture: true });
     };
   }, [overlayVisible, measure]);
 
