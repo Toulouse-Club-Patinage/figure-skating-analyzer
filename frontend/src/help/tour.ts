@@ -236,6 +236,65 @@ export const SCREEN_TOURS: ScreenTour[] = [
       },
     ],
   },
+  // ── Détail d'une compétition. Les compétitions « France Clubs » ont deux
+  // onglets portés par un `useState` : l'entrée sans `tab` couvre les
+  // résultats et sert de repli pour les compétitions sans onglets, celle qui
+  // cible `team` explique le score par équipe.
+  {
+    pattern: "/competitions/:id",
+    label: "le détail d'une compétition",
+    steps: [
+      {
+        target: "competition-entete",
+        title: "La compétition",
+        body: "Nom, discipline, dates et ligue de la compétition. L'icône à côté du nom ouvre le site d'origine des résultats.",
+        chapterId: "competitions",
+        audience: CLUB,
+      },
+      {
+        target: "competition-onglets",
+        title: "Résultats ou score équipe",
+        body: "Sur une compétition par équipes, ces onglets basculent entre les résultats individuels et le calcul du score de l'équipe.",
+        chapterId: "competitions",
+        audience: CLUB,
+      },
+      {
+        target: "competition-categories",
+        title: "Aller à une catégorie",
+        body: "Les résultats sont regroupés par catégorie. Ces pastilles mènent directement à celle qui vous intéresse.",
+        chapterId: "competitions",
+        audience: CLUB,
+      },
+      {
+        target: "competition-classement",
+        title: "Le classement général",
+        body: "Le classement final de la catégorie, tous programmes confondus. Un clic sur un nom ouvre la page d'analyse du patineur.",
+        chapterId: "comprendre-les-scores-club",
+        audience: CLUB,
+      },
+      {
+        target: "competition-segment",
+        title: "Le détail d'un programme",
+        body: "Programme par programme : le total, la note technique (TES), les composantes (PCS) et les pénalités de chaque patineur.",
+        chapterId: "comprendre-les-scores-club",
+        audience: CLUB,
+      },
+    ],
+  },
+  {
+    pattern: "/competitions/:id",
+    tab: "team",
+    label: "l'onglet Score équipe",
+    steps: [
+      {
+        target: "competition-equipe",
+        title: "Le score de l'équipe",
+        body: "Le score collectif se calcule à partir des résultats individuels retenus. Vous choisissez ici quels patineurs comptent, et l'application signale les compositions qui enfreignent les règles.",
+        chapterId: "competitions",
+        audience: CLUB,
+      },
+    ],
+  },
   {
     pattern: "/club/saison",
     label: "les statistiques du club",
@@ -251,6 +310,47 @@ export const SCREEN_TOURS: ScreenTour[] = [
         target: "club-contenu",
         title: "Les chiffres du club",
         body: "Participations, scores moyens par catégorie et comparaisons entre patineurs sur la période choisie.",
+        chapterId: "statistiques-club",
+        audience: CLUB,
+      },
+    ],
+  },
+  {
+    pattern: "/club/competition",
+    label: "l'analyse d'une compétition",
+    steps: [
+      {
+        target: "club-competition-selecteur",
+        title: "Choisir la compétition",
+        body: "La compétition la plus récente de la saison est déjà sélectionnée. Ce menu permet d'en analyser une autre.",
+        chapterId: "statistiques-club",
+        audience: CLUB,
+      },
+      {
+        target: "club-competition-kpis",
+        title: "Le bilan en un coup d'œil",
+        body: "Patineurs engagés, médailles, records personnels et catégories couvertes sur cette compétition.",
+        chapterId: "statistiques-club",
+        audience: CLUB,
+      },
+      {
+        target: "club-competition-challenge",
+        title: "Le classement Club Challenge",
+        body: "La position du club face aux autres, avec le détail des points. Le lien ouvre la répartition catégorie par catégorie.",
+        chapterId: "statistiques-club",
+        audience: CLUB,
+      },
+      {
+        target: "club-competition-podiums",
+        title: "Les podiums du club",
+        body: "Les patineurs du club montés sur le podium, avec leur catégorie et leur total.",
+        chapterId: "statistiques-club",
+        audience: CLUB,
+      },
+      {
+        target: "club-competition-resultats",
+        title: "Les résultats détaillés",
+        body: "Chaque patineur engagé, son rang dans sa catégorie et son score. L'étoile signale un record personnel.",
         chapterId: "statistiques-club",
         audience: CLUB,
       },

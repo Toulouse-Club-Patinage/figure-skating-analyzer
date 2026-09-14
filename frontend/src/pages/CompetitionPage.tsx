@@ -226,7 +226,7 @@ function ResultsContent({
     <>
       {/* Category navigation */}
       {groups.length > 1 && (
-        <nav className="flex flex-wrap gap-2 mb-6">
+        <nav data-tour="competition-categories" className="flex flex-wrap gap-2 mb-6">
           {groups.map(({ category }) => {
             const anchor = (category ?? "").replace(/\s+/g, "-");
             return (
@@ -242,7 +242,7 @@ function ResultsContent({
         </nav>
       )}
 
-      {groups.map((group) => {
+      {groups.map((group, groupIndex) => {
         const anchor = (group.category ?? "").replace(/\s+/g, "-");
         const hasOverallResults = group.categoryResults.length > 0;
         const isMultiSegment = group.segmentCount > 1;
@@ -260,10 +260,25 @@ function ResultsContent({
               )}
             </div>
 
-            {hasOverallResults && <OverallResultsTable group={group} />}
+            {/* Les ancres du tutoriel ne sont posées que sur la première
+                catégorie : le tutoriel cherche une cible unique, et chaque
+                catégorie répète la même structure. */}
+            {hasOverallResults && (
+              <div data-tour={groupIndex === 0 ? "competition-classement" : undefined}>
+                <OverallResultsTable group={group} />
+              </div>
+            )}
 
-            {group.segments.map(({ segment, scores: segScores }) => (
-              <div key={segment} className="mt-6">
+            {group.segments.map(({ segment, scores: segScores }, segIndex) => (
+              <div
+                key={segment}
+                data-tour={
+                  groupIndex === 0 && segIndex === 0
+                    ? "competition-segment"
+                    : undefined
+                }
+                className="mt-6"
+              >
                 <div className="mb-2">
                   <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
                     {segment}
@@ -323,7 +338,10 @@ export default function CompetitionPage() {
   const competitionStatus = getCompetitionStatus(competition);
 
   return (
-    <div>
+    // `data-tour-tab` annonce l'onglet actif au tutoriel, comme sur la page
+    // d'analyse patineur. Seules les compétitions France Clubs ont des onglets ;
+    // ailleurs on n'annonce rien, et l'entrée sans `tab` du registre s'applique.
+    <div data-tour-tab={isFranceClubs ? activeTab : undefined}>
       <Link
         to="/competitions"
         className="text-primary text-xs font-bold uppercase tracking-wider hover:underline flex items-center gap-1"
@@ -331,7 +349,10 @@ export default function CompetitionPage() {
         <span className="material-symbols-outlined text-base">arrow_back</span>{" "}
         Retour
       </Link>
-      <h1 className="text-2xl font-bold mt-2 flex items-center gap-2">
+      <h1
+        data-tour="competition-entete"
+        className="text-2xl font-bold mt-2 flex items-center gap-2"
+      >
         {competition.name}
         {competition.url && (
           <a
@@ -367,7 +388,7 @@ export default function CompetitionPage() {
 
       {/* Tabs - only show if France Clubs */}
       {isFranceClubs && (
-        <nav className="flex gap-1 mb-6 border-b">
+        <nav data-tour="competition-onglets" className="flex gap-1 mb-6 border-b">
           <button
             onClick={() => { setActiveTab("results"); window.scrollTo(0, 0); }}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${

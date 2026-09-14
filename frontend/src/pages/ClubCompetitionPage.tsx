@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import ClubTabBar from "../components/ClubTabBar";
 import { api, CompetitionClubAnalysis } from "../api/client";
@@ -8,6 +8,10 @@ export default function ClubCompetitionPage() {
   const [selectedSeason, setSelectedSeason] = useState<string>("");
   const [selectedCompId, setSelectedCompId] = useState<number | null>(null);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
+  /** Vrai dès que l'utilisateur choisit une saison dans le sélecteur. Le repli
+   *  automatique vers une saison plus ancienne s'arrête alors définitivement :
+   *  une saison vide choisie sciemment doit rester affichée telle quelle. */
+  const [seasonPicked, setSeasonPicked] = useState(false);
 
   const { data: seasons = [] } = useQuery({
     queryKey: ["seasons"],
@@ -16,11 +20,35 @@ export default function ClubCompetitionPage() {
 
   const season = selectedSeason || seasons[0] || "";
 
-  const { data: competitions = [] } = useQuery({
+  const { data: competitions = [], isFetched: competitionsFetched } = useQuery({
     queryKey: ["club-competitions", season],
     queryFn: () => api.competitions.list({ season, my_club: true }),
     enabled: !!season,
   });
+
+  // Présélection de la compétition la plus récente : sans elle la page s'ouvre
+  // vide, ce qui oblige à un clic avant de voir quoi que ce soit et prive le
+  // tutoriel de ses ancres. La liste arrive triée par date décroissante, d'où
+  // `competitions[0]`. L'effet se rejoue à chaque nouvelle liste, donc aussi
+  // après un changement de saison (qui remet la sélection à zéro) ; la garde
+  // sur `selectedCompId` préserve un choix manuel.
+  useEffect(() => {
+    if (selectedCompId === null && competitions.length > 0) {
+      setSelectedCompId(competitions[0].id);
+    }
+  }, [competitions, selectedCompId]);
+
+  // Saison courante sans aucune compétition du club : on recule vers la saison
+  // précédente qui en a une, plutôt que de laisser la page vide en début de
+  // saison. `seasons` arrive trié du plus récent au plus ancien, donc reculer
+  // c'est avancer d'un cran dans le tableau. Ce repli ne vaut que tant que
+  // l'utilisateur n'a pas choisi de saison lui-même : s'il en sélectionne une
+  // vide sciemment, on l'y laisse.
+  useEffect(() => {
+    if (seasonPicked || !competitionsFetched || competitions.length > 0) return;
+    const next = seasons[seasons.indexOf(season) + 1];
+    if (next) setSelectedSeason(next);
+  }, [seasonPicked, competitionsFetched, competitions, seasons, season]);
 
   const { data: analysis, isLoading } = useQuery({
     queryKey: ["competition-club-analysis", selectedCompId],
@@ -52,6 +80,7 @@ export default function ClubCompetitionPage() {
             value={season}
             onChange={(e) => {
               setSelectedSeason(e.target.value);
+              setSeasonPicked(true);
               setSelectedCompId(null);
             }}
             className="bg-surface-container rounded-lg px-3 py-1.5 text-sm text-on-surface border-none focus:ring-2 focus:ring-primary"
@@ -61,7 +90,10 @@ export default function ClubCompetitionPage() {
             ))}
           </select>
         </div>
-        <div className="flex items-center gap-2 min-w-0 flex-1">
+        <div
+          data-tour="club-competition-selecteur"
+          className="flex items-center gap-2 min-w-0 flex-1"
+        >
           <span className="text-[11px] uppercase tracking-wider text-on-surface-variant shrink-0">
             Compétition
           </span>
@@ -103,7 +135,7 @@ export default function ClubCompetitionPage() {
       {analysis && analysis.results.length > 0 && (
         <>
           {/* KPI Hero Row */}
-          <div className="grid grid-cols-4 gap-3 mb-6">
+          <div data-tour="club-competition-kpis" className="grid grid-cols-4 gap-3 mb-6">
             {[
               { value: analysis.kpis.skaters_entered, label: "Patineurs engagés" },
               { value: analysis.kpis.total_medals, label: "Médailles" },
@@ -130,7 +162,10 @@ export default function ClubCompetitionPage() {
           {/* Two-column: Club Challenge + Medals */}
           <div className="grid grid-cols-[3fr_2fr] gap-4 mb-6">
             {/* Club Challenge Ranking */}
-            <div className="bg-surface-container-lowest rounded-xl shadow-sm p-5">
+            <div
+              data-tour="club-competition-challenge"
+              className="bg-surface-container-lowest rounded-xl shadow-sm p-5"
+            >
               <div className="flex items-center justify-between mb-4">
                 <h2 className="font-headline font-bold text-on-surface text-sm flex items-center gap-2">
                   <span className="material-symbols-outlined text-lg">emoji_events</span>
@@ -176,7 +211,10 @@ export default function ClubCompetitionPage() {
             </div>
 
             {/* Medals */}
-            <div className="bg-surface-container-lowest rounded-xl shadow-sm p-5 flex flex-col">
+            <div
+              data-tour="club-competition-podiums"
+              className="bg-surface-container-lowest rounded-xl shadow-sm p-5 flex flex-col"
+            >
               <h2 className="font-headline font-bold text-on-surface text-sm mb-4">
                 Podiums du club
               </h2>
@@ -205,7 +243,10 @@ export default function ClubCompetitionPage() {
           </div>
 
           {/* Detailed Results */}
-          <div className="bg-surface-container-lowest rounded-xl shadow-sm p-5">
+          <div
+            data-tour="club-competition-resultats"
+            className="bg-surface-container-lowest rounded-xl shadow-sm p-5"
+          >
             <h2 className="font-headline font-bold text-on-surface text-sm mb-4">
               Résultats détaillés
             </h2>

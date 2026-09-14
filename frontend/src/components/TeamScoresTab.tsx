@@ -528,7 +528,7 @@ export default function TeamScoresTab({ competitionId }: { competitionId: number
   );
 
   return (
-    <div className="space-y-6">
+    <div data-tour="competition-equipe" className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
