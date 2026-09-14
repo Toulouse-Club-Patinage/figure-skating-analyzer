@@ -6,6 +6,7 @@ type Rect = { top: number; left: number; width: number; height: number };
 const PAD = 6;       // marge du surlignage autour de la cible
 const BUBBLE_W = 320;
 const GAP = 12;      // écart entre la cible et la bulle
+const BUBBLE_H_ESTIMATE = 191; // hauteur de repli avant la première mesure réelle
 
 export default function TourOverlay() {
   const {
@@ -19,6 +20,7 @@ export default function TourOverlay() {
     chapters,
   } = useHelp();
   const [rect, setRect] = useState<Rect | null>(null);
+  const [bubbleHeight, setBubbleHeight] = useState<number>(BUBBLE_H_ESTIMATE);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const step = overlayVisible ? steps[stepIndex] : null;
 
@@ -27,10 +29,13 @@ export default function TourOverlay() {
     const el = document.querySelector(`[data-tour="${step.target}"]`);
     if (!el) {
       setRect(null);
-      return;
+    } else {
+      const r = el.getBoundingClientRect();
+      setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
     }
-    const r = el.getBoundingClientRect();
-    setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+    if (bubbleRef.current) {
+      setBubbleHeight(bubbleRef.current.getBoundingClientRect().height);
+    }
   }, [step]);
 
   // Mesure avant peinture pour éviter un cadre au mauvais endroit sur une
@@ -83,9 +88,20 @@ export default function TourOverlay() {
     height: 0,
   };
 
-  const below = window.innerHeight - (box.top + box.height) > 220;
-  const bubbleTop = below ? box.top + box.height + GAP : undefined;
-  const bubbleBottom = below ? undefined : window.innerHeight - box.top + GAP;
+  // Préférence : sous la cible, sinon au-dessus, sinon là où ça tient — mais
+  // toujours entièrement dans le viewport verticalement (jamais rogné en
+  // haut ni en bas).
+  const below = window.innerHeight - (box.top + box.height) > bubbleHeight + GAP;
+  const above = box.top > bubbleHeight + GAP;
+  const rawTop = below
+    ? box.top + box.height + GAP
+    : above
+      ? box.top - bubbleHeight - GAP
+      : box.top; // la cible ne laisse de place ni dessus ni dessous : on
+                 // recadre simplement dans le viewport ci-dessous, un
+                 // recouvrement de la cible est acceptable dans ce cas.
+  const maxTop = window.innerHeight - bubbleHeight - GAP;
+  const bubbleTop = Math.min(Math.max(GAP, rawTop), Math.max(GAP, maxTop));
   const bubbleLeft = Math.min(
     Math.max(GAP, box.left + box.width / 2 - BUBBLE_W / 2),
     window.innerWidth - BUBBLE_W - GAP
@@ -144,7 +160,6 @@ export default function TourOverlay() {
         style={{
           width: BUBBLE_W,
           top: bubbleTop,
-          bottom: bubbleBottom,
           left: bubbleLeft,
         }}
       >
