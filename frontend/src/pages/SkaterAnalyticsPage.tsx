@@ -724,11 +724,11 @@ export default function SkaterAnalyticsPage() {
       {analyticsTab === "journal" && !showTrainingTab && showJournalTab && (() => {
         const todayEvals = (selfEvalsToday ?? []);
         return (
-          <div className="p-6 space-y-4">
+          <div className="p-6 space-y-4" data-tour="analyse-journal">
             <MoodInput skaterId={skaterId} today={selfEvalToday} />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-surface-container-lowest rounded-xl shadow-sm p-5">
+              <div className="bg-surface-container-lowest rounded-xl shadow-sm p-5" data-tour="analyse-autoeval">
                 <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant mb-3">
                   Auto-evaluations du jour
                 </p>
@@ -1580,11 +1580,11 @@ export default function SkaterAnalyticsPage() {
               const todayEvals = (selfEvalsToday ?? []);
 
               return (
-              <div className="space-y-4">
+              <div className="space-y-4" data-tour="analyse-journal">
                 <MoodInput skaterId={skaterId} today={selfEvalToday} />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-surface-container-lowest rounded-xl shadow-sm p-5">
+                  <div className="bg-surface-container-lowest rounded-xl shadow-sm p-5" data-tour="analyse-autoeval">
                     <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant mb-3">
                       Auto-evaluations du jour
                     </p>
