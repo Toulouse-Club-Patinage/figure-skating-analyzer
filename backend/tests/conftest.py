@@ -46,7 +46,29 @@ async def client(db_session: AsyncSession, monkeypatch) -> AsyncGenerator[AsyncC
     async def _test_get_session():
         yield db_session
 
+    # Les routers capturent `get_session` dans `Provide(...)` au moment de
+    # l'import : patcher l'attribut du module n'atteindrait donc pas les routes
+    # déjà construites, qui continueraient de taper dans la vraie base. On
+    # patche aussi la factory, que `get_session` lit à chaque appel — c'est
+    # elle qui garantit l'isolation des tests.
     monkeypatch.setattr(db_mod, "get_session", _test_get_session)
+
+    class _TestSessionFactory:
+        """Rend la session de test, sans la fermer (le fixture s'en charge)."""
+
+        def __call__(self):
+            session = db_session
+
+            class _Ctx:
+                async def __aenter__(self):
+                    return session
+
+                async def __aexit__(self, *exc):
+                    return False
+
+            return _Ctx()
+
+    monkeypatch.setattr(db_mod, "async_session_factory", _TestSessionFactory())
 
     from app.main import app
 

@@ -7,6 +7,7 @@ import { ProtectedRoute } from "./auth/ProtectedRoute";
 import { JobProvider } from "./contexts/JobContext";
 import ForcePasswordModal from "./components/ForcePasswordModal";
 import NotificationBell from "./components/NotificationBell";
+import SupportLink from "./components/SupportLink";
 import { HelpProvider } from "./help/HelpContext";
 import HelpMenu from "./help/HelpMenu";
 import DocPanel from "./help/DocPanel";
@@ -330,6 +331,11 @@ function AuthenticatedLayout() {
               </button>
             </div>
           )}
+          {/* Contact support — masqué si aucune adresse n'est configurée */}
+          <div className={`flex ${collapsed ? "justify-center" : "px-4"} py-1`}>
+            <SupportLink iconOnly={collapsed} />
+          </div>
+
           {/* Collapse toggle (desktop only) */}
           <button
             onClick={toggleCollapsed}

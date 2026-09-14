@@ -31,3 +31,4 @@ class AppSettings(Base):
         Integer, nullable=False, default=0, server_default="0"
     )
     french_ranking_club_names: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    support_email: Mapped[str | None] = mapped_column(String(255), nullable=True)

@@ -427,6 +427,7 @@ export default function SettingsPage() {
   const [smtpPassword, setSmtpPassword] = useState("");
   const [smtpFrom, setSmtpFrom] = useState("");
   const [smtpFromName, setSmtpFromName] = useState("");
+  const [supportEmail, setSupportEmail] = useState("");
   const [smtpLoaded, setSmtpLoaded] = useState(false);
 
   useEffect(() => {
@@ -436,6 +437,7 @@ export default function SettingsPage() {
       setSmtpUser(smtpData.smtp_user);
       setSmtpFrom(smtpData.smtp_from);
       setSmtpFromName(smtpData.smtp_from_name);
+      setSupportEmail(smtpData.support_email ?? "");
       setSmtpLoaded(true);
     }
   }, [smtpData, smtpLoaded]);
@@ -449,9 +451,11 @@ export default function SettingsPage() {
         ...(smtpPassword ? { smtp_password: smtpPassword } : {}),
         smtp_from: smtpFrom,
         smtp_from_name: smtpFromName,
+        support_email: supportEmail,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["smtp-settings"] });
+      qc.invalidateQueries({ queryKey: ["config"] });
       setSmtpPassword("");
     },
   });
@@ -1118,6 +1122,23 @@ export default function SettingsPage() {
               placeholder="Mon Club Patinage"
               className={inputCls}
             />
+          </div>
+          <div>
+            <label className="block text-xs font-label font-medium text-on-surface-variant mb-1">
+              Adresse de support
+            </label>
+            <input
+              value={supportEmail}
+              onChange={(e) => setSupportEmail(e.target.value)}
+              placeholder="support@exemple.fr"
+              className={inputCls}
+            />
+            <p className="text-[11px] text-on-surface-variant mt-1">
+              Affichée aux utilisateurs sous forme de lien discret (connexion et
+              menu latéral). L'adresse est encodée avant envoi au navigateur
+              pour éviter sa collecte par les robots. Laissez vide pour masquer
+              le lien.
+            </p>
           </div>
           <div>
             <label className="block text-xs font-label font-medium text-on-surface-variant mb-1">

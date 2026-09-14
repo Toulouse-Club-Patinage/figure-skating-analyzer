@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext";
 import { api } from "../api/client";
+import SupportLink from "../components/SupportLink";
 
 declare global {
   interface Window {
@@ -187,6 +188,12 @@ export default function LoginPage() {
               <div ref={googleBtnRef} className="flex justify-center" />
             </div>
           )}
+        </div>
+
+        {/* Recours en cas de blocage : un utilisateur qui ne peut pas se
+            connecter n'atteint aucune page interne. */}
+        <div className="flex justify-center mt-6">
+          <SupportLink label="Un problème pour vous connecter ?" />
         </div>
       </div>
     </div>

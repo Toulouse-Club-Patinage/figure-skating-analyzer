@@ -430,6 +430,11 @@ export interface ConfigResponse {
   french_ranking_url?: string;
   account_requests_enabled?: boolean;
   french_ranking_club_names?: string[];
+  /** Adresse de support encodée (ROT13 + `(at)`), décodée au clic seulement.
+   *  Voir `components/SupportLink.tsx`. Absente de la réponse du PATCH admin,
+   *  qui renvoie `support_email` en clair pour réafficher le formulaire. */
+  support_email_encoded?: string;
+  support_email?: string;
 }
 
 export interface SmtpSettings {
@@ -439,6 +444,8 @@ export interface SmtpSettings {
   smtp_from: string;
   smtp_from_name: string;
   configured: boolean;
+  /** Adresse de contact affichée aux utilisateurs (endpoint admin : en clair). */
+  support_email?: string;
 }
 
 export interface SmtpTestResult {
@@ -915,14 +922,14 @@ export const api = {
     get: () => request<ConfigResponse>("/config/"),
     accountRequestsEnabled: () =>
       request<{ enabled: boolean }>("/config/account-requests-enabled"),
-    update: (data: { club_name?: string; club_short?: string; current_season?: string; training_enabled?: boolean; french_ranking_url?: string; account_requests_enabled?: boolean; french_ranking_club_names?: string[] }) =>
+    update: (data: { club_name?: string; club_short?: string; current_season?: string; training_enabled?: boolean; french_ranking_url?: string; account_requests_enabled?: boolean; french_ranking_club_names?: string[]; support_email?: string }) =>
       request<ConfigResponse>("/config/", {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
     smtp: {
       get: () => request<SmtpSettings>("/config/smtp"),
-      update: (data: { smtp_host?: string; smtp_port?: number; smtp_user?: string; smtp_password?: string; smtp_from?: string; smtp_from_name?: string }) =>
+      update: (data: { smtp_host?: string; smtp_port?: number; smtp_user?: string; smtp_password?: string; smtp_from?: string; smtp_from_name?: string; support_email?: string }) =>
         request<SmtpSettings>("/config/smtp", { method: "PATCH", body: JSON.stringify(data) }),
       test: (to?: string) =>
         request<SmtpTestResult>("/config/smtp-test", { method: "POST", body: JSON.stringify({ to }) }),
