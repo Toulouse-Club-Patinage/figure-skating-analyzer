@@ -138,7 +138,7 @@ export const SCREEN_TOURS: ScreenTour[] = [
       {
         target: "competitions-import",
         title: "Importer une compétition",
-        body: "Collez ici l'adresse du site de la compétition : l'application récupère les feuilles de notes et en extrait les scores.",
+        body: "Ce bouton ouvre le formulaire d'import : collez-y l'adresse du site de la compétition, l'application récupère les feuilles de notes et en extrait les scores.",
         chapterId: "competitions",
         audience: CLUB,
       },

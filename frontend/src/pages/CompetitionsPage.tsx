@@ -213,6 +213,7 @@ export default function CompetitionsPage() {
         </div>
         {isAdmin && (
           <button
+            data-tour="competitions-import"
             onClick={() => setShowForm((v) => !v)}
             className="bg-primary text-on-primary rounded-lg py-2 px-4 text-xs font-bold active:scale-95 transition-all"
           >
@@ -224,7 +225,6 @@ export default function CompetitionsPage() {
       {/* Add competition form */}
       {showForm && (
         <form
-          data-tour="competitions-import"
           className="bg-surface-container-lowest rounded-xl shadow-sm p-6 mb-6"
           onSubmit={(e) => {
             e.preventDefault();
