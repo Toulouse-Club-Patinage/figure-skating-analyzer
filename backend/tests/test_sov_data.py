@@ -124,3 +124,121 @@ def test_goe_arrays_are_signed_ascending_and_never_contain_the_base_value(sov):
         assert all(a < b for a, b in zip(reductions, reductions[1:])), code
         assert all(a < b for a, b in zip(bonuses, bonuses[1:])), code
         assert base not in goe, code
+
+
+@pytest.fixture(scope="module")
+def rules() -> dict:
+    with open(DATA_DIR / "program_rules_2026_2027.json") as f:
+        return json.load(f)
+
+
+def test_rules_season(rules):
+    assert rules["season"] == "2026-2027"
+
+
+def test_all_2025_categories_still_present(rules):
+    """The 2026-27 Book did not remove any category the app supports."""
+    expected = {
+        "ISU Senior", "ISU Junior", "ISU Advanced Novice",
+        "ISU Intermediate Novice", "ISU Basic Novice",
+        "Regional 3 - Niveau C", "Regional 3 - Niveau B", "Regional 3 - Niveau A",
+        "Adulte Master Elite", "Adulte Or", "Adulte Argent", "Adulte Bronze",
+        "Occitanie Exhibition", "Occitanie Duo",
+    }
+    assert set(rules["categories"]) == expected
+
+
+def test_isu_senior_free_skating(rules):
+    """Six jump elements (was seven), three spins including the choreo spin."""
+    seg = rules["categories"]["ISU Senior"]["segments"]["PL"]
+    assert seg["max_jump_elements"] == 6
+    assert seg["max_spins"] == 3
+    assert seg["requires_choreo_spin"] is True
+    assert seg["max_steps"] == 1
+    assert seg["max_choreo"] == 1
+    assert seg["total_elements"] == 11
+
+
+def test_isu_junior_free_skating_has_no_step_sequence(rules):
+    """Encoded as written: the Book's Junior FS list omits the step sequence."""
+    seg = rules["categories"]["ISU Junior"]["segments"]["PL"]
+    assert seg["max_jump_elements"] == 6
+    assert seg["max_steps"] == 0
+    assert seg["total_elements"] == 10
+
+
+def test_advanced_novice_free_skating(rules):
+    """Five jump elements, two spins, one choreo sequence, no step sequence."""
+    seg = rules["categories"]["ISU Advanced Novice"]["segments"]["PL"]
+    assert seg["max_jump_elements"] == 5
+    assert seg["max_spins"] == 2
+    assert seg["max_steps"] == 0
+    assert seg["max_choreo"] == 1
+    assert seg["total_elements"] == 8
+
+
+def test_quints_only_in_isu_senior_free_skating(rules):
+    allowed = [
+        (cat, seg_key)
+        for cat, c in rules["categories"].items()
+        for seg_key, seg in c["segments"].items()
+        if seg.get("quints_allowed")
+    ]
+    assert allowed == [("ISU Senior", "PL")]
+
+
+def test_quints_never_allowed_where_quads_are_not(rules):
+    """Guard against the two flags drifting apart in a future update."""
+    for cat, c in rules["categories"].items():
+        for seg_key, seg in c["segments"].items():
+            if seg.get("quints_allowed"):
+                assert seg.get("quads_allowed") is True, f"{cat}/{seg_key}"
+
+
+def test_euler_forbidden_in_short_programs(rules):
+    for cat, c in rules["categories"].items():
+        for seg_key, seg in c["segments"].items():
+            if seg_key == "PC":
+                assert seg.get("euler_allowed") is False, f"{cat}/{seg_key}"
+
+
+def test_element_maxima_sum_to_total(rules):
+    """Catches a miscounted total_elements when a maximum is edited."""
+    for cat, c in rules["categories"].items():
+        for seg_key, seg in c["segments"].items():
+            if "total_elements" not in seg:
+                continue
+            # has_duo_element is deliberately NOT added here: it flags that one of
+            # the elements IS a duo element, it does not add an extra one.
+            # (Occitanie Duo: 2+2+1+1 = 6 = total_elements, with the flag set.)
+            parts = sum(
+                seg.get(k, 0)
+                for k in ("max_jump_elements", "max_spins", "max_steps", "max_choreo")
+            )
+            assert parts == seg["total_elements"], f"{cat}/{seg_key}: {parts} != {seg['total_elements']}"
+
+
+def test_novice_free_skating_carries_variety_bonus(rules):
+    for cat in ("ISU Advanced Novice", "ISU Intermediate Novice", "ISU Basic Novice"):
+        seg = rules["categories"][cat]["segments"]["PL"]
+        assert seg["bonus"]["jump_variety"] == 2
+
+
+def test_advanced_novice_jump_bonuses(rules):
+    pc = rules["categories"]["ISU Advanced Novice"]["segments"]["PC"]["bonus"]
+    assert pc["double_axel"] == 1
+    assert pc["triple"] == 1
+    assert "second_different_triple" not in pc
+
+    pl = rules["categories"]["ISU Advanced Novice"]["segments"]["PL"]["bonus"]
+    assert pl["double_axel"] == 1
+    assert pl["triple"] == 1
+    assert pl["second_different_triple"] == 1
+
+
+def test_allowed_jumps_and_spins_exist_in_sov(rules, sov):
+    """A typo in an allowed_jumps entry would silently forbid everything."""
+    for cat, c in rules["categories"].items():
+        for seg_key, seg in c["segments"].items():
+            for code in seg.get("allowed_jumps", []):
+                assert code in sov["elements"], f"{cat}/{seg_key}: {code}"
