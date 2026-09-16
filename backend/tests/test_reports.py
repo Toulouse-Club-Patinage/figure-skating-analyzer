@@ -193,3 +193,66 @@ async def test_club_pdf_endpoint(client, admin_token, db_session):
 async def test_report_requires_auth(client):
     resp = await client.get("/api/reports/club/pdf?season=2025-2026")
     assert resp.status_code == 401
+
+
+def _program_payload(bonus=None) -> dict:
+    """Minimal program-builder payload for the PDF renderer."""
+    payload = {
+        "elements": [
+            {"type": "jump", "baseCode": "2A", "markers": [], "bv": 3.3},
+            {"type": "spin", "baseCode": "CCoSp4", "markers": [], "bv": 3.5},
+        ],
+        "category": "ISU Advanced Novice",
+        "segment_label": "Programme Libre",
+        "validation": [],
+    }
+    if bonus is not None:
+        payload["bonus"] = bonus
+    return payload
+
+
+def _rendered_html(mock_weasyprint) -> str:
+    """The HTML string weasyprint was asked to turn into a PDF."""
+    return mock_weasyprint.HTML.call_args.kwargs["string"]
+
+
+def test_program_pdf_renders_the_bonus_line(mock_weasyprint):
+    from app.routes.reports import _build_program_pdf
+
+    _build_program_pdf(
+        _program_payload(
+            bonus={
+                "total": 4.0,
+                "lines": [
+                    {"label": "Double Axel", "points": 1, "earned": True},
+                    {"label": "Variété des sauts", "points": 3, "earned": True},
+                    {"label": "2ᵉ triple différent", "points": 1, "earned": False},
+                ],
+            }
+        )
+    )
+
+    html = _rendered_html(mock_weasyprint)
+    assert "Bonus" in html
+    assert "+4.00" in html
+    # The unearned line is struck through; the earned ones are not.
+    unearned = html.split("2ᵉ triple différent")[0].rsplit("<span", 1)[1]
+    assert "line-through" in unearned
+    earned = html.split("Double Axel")[0].rsplit("<span", 1)[1]
+    assert "line-through" not in earned
+
+
+def test_program_pdf_omits_the_bonus_line_without_bonus(mock_weasyprint):
+    from app.routes.reports import _build_program_pdf
+
+    _build_program_pdf(_program_payload())
+
+    assert "Bonus" not in _rendered_html(mock_weasyprint)
+
+
+def test_program_pdf_omits_the_bonus_line_when_no_line_is_listed(mock_weasyprint):
+    from app.routes.reports import _build_program_pdf
+
+    _build_program_pdf(_program_payload(bonus={"total": 0.0, "lines": []}))
+
+    assert "Bonus" not in _rendered_html(mock_weasyprint)
