@@ -44,4 +44,4 @@ dist/
 
 # Claude worktrees
 .claude/worktrees/
-.superpowers/brainstorm/
+.superpowers/
