@@ -27,6 +27,24 @@
 	}
 }
 
+# --- Ligue — ancien domaine, redirection ------------------------------
+# L'app a changé de domaine (toulouseclubpatinage.com → ligue-occitanie-sg.com).
+# Des liens vers l'ancien nom circulent dans les mails déjà envoyés aux clubs
+# et dans les favoris : on les redirige plutôt que de les laisser tomber sur
+# une erreur de certificat.
+#
+# `permanent` = 301 : les navigateurs la mettent en cache durablement. C'est
+# voulu ici (le changement est définitif), mais cela signifie qu'un retour en
+# arrière ne serait PAS vu par les clients qui ont déjà suivi la redirection.
+#
+# ⚠️ Caddy REFUSE de démarrer sur une adresse de site vide : le jour où l'on
+# retire l'ancien domaine, commenter ce bloc ENTIER, ne pas se contenter de
+# vider `LIGUE_DOMAIN_OLD` dans le `.env` — cela mettrait tout le routeur de
+# bordure à terre, SkateLab compris.
+{$LIGUE_DOMAIN_OLD} {
+	redir https://{$LIGUE_DOMAIN}{uri} permanent
+}
+
 # --- SkateLab — INACTIF -----------------------------------------------
 # L'application est encore servie par GCP ; elle n'est pas déployée sur ce
 # VPS. Laisser ce bloc actif ferait tenter à Caddy une émission ACME pour
