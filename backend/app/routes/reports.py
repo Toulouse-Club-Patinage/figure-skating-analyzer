@@ -112,6 +112,8 @@ def _build_program_pdf(data: dict[str, Any]) -> bytes:
     elements = data.get("elements", [])
     category = data.get("category")
     validation = data.get("validation", [])
+    # Optional: {"total": float, "lines": [{"label": str, "points": float, "earned": bool}]}
+    bonus = data.get("bonus")
 
     # Build template-ready element list
     tpl_elements = []
@@ -178,6 +180,7 @@ def _build_program_pdf(data: dict[str, Any]) -> bytes:
         category=category,
         segment_label=segment_label,
         validation=validation,
+        bonus=bonus,
         logo_base64=logo_b64,
         generated_at=datetime.now().strftime("%d/%m/%Y %H:%M"),
     )
