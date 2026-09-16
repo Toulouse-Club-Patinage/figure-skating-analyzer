@@ -177,14 +177,20 @@ def test_advanced_novice_free_skating(rules):
     assert seg["total_elements"] == 8
 
 
-def test_quints_only_in_isu_senior_free_skating(rules):
-    allowed = [
+def test_quints_allowed_only_in_isu_free_skating(rules):
+    """Règle ISU 612 grants "n'importe quel nombre de tours" to the free program
+    of both ISU Senior and ISU Junior, and to no other category. Short programs
+    are excluded by Communication 2786 remark 6 ("quint jumps are not permit").
+
+    Compared as a set so the assertion does not depend on dict iteration order.
+    """
+    allowed = {
         (cat, seg_key)
         for cat, c in rules["categories"].items()
         for seg_key, seg in c["segments"].items()
         if seg.get("quints_allowed")
-    ]
-    assert allowed == [("ISU Senior", "PL")]
+    }
+    assert allowed == {("ISU Senior", "PL"), ("ISU Junior", "PL")}
 
 
 def test_quints_never_allowed_where_quads_are_not(rules):
