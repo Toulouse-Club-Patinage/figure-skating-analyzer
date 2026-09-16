@@ -299,6 +299,39 @@ def test_advanced_novice_jump_bonuses(rules):
     assert pl["second_different_triple"] == 1
 
 
+def test_every_segment_states_euler_allowed_explicitly(rules):
+    """An omitted euler_allowed would silently license an Euler -- the opposite
+    of the safe default every sibling flag (quads_allowed, quints_allowed, ...)
+    uses. Next season's author must set the key explicitly on every segment."""
+    n = 0
+    for cat, c in rules["categories"].items():
+        for seg_key, seg in c["segments"].items():
+            n += 1
+            assert "euler_allowed" in seg, f"{cat}/{seg_key}"
+    assert n == 17
+
+
+def test_allowed_spins_key_mismatch_is_known_and_deliberate(rules):
+    """The data writes ``allowed_spins``; the TypeScript validator
+    (program-validator.ts, ``rules.allowed_spin_types``) and client.ts read
+    ``allowed_spin_types``, so Régional 3 spin validation has never executed.
+
+    This is a known, deliberate mismatch -- NOT renamed in the Book/SOV
+    2026-2027 branch, because renaming the JSON key would silently switch a
+    dormant rule on for real users, which is a behaviour change nobody asked
+    for. This test pins the current (mismatched) state so the next person to
+    touch this file discovers the mismatch instead of re-deriving it, rather
+    than "fixing" it by accident.
+    """
+    regional_3_segments_with_spins = []
+    for cat, c in rules["categories"].items():
+        for seg_key, seg in c["segments"].items():
+            if "allowed_spins" in seg:
+                regional_3_segments_with_spins.append((cat, seg_key))
+            assert "allowed_spin_types" not in seg, f"{cat}/{seg_key}"
+    assert len(regional_3_segments_with_spins) == 3
+
+
 def test_allowed_jumps_exist_in_sov(rules, sov):
     """A typo in an allowed_jumps entry would silently forbid everything.
 

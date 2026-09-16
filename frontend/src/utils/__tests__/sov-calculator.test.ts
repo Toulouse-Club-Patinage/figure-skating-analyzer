@@ -49,7 +49,7 @@ describe("composeSovCode", () => {
     expect(calculateElementBV(sov, "CCoSp4", ["V"])).toBe(3.15);
   });
 
-  it("returns null when the composed code is not in the SOV", () => {
+  it("falls back to zero base value when the composed code is not in the SOV", () => {
     expect(composeSovCode("1T", ["<<"])).toBe("1T<<");
     expect(calculateElementBV(sov, "1T", ["<<"])).toBe(0);
   });

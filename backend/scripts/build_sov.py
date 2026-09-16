@@ -123,7 +123,10 @@ def drop_bonus_duplicates(elements: dict[str, dict]) -> dict[str, dict]:
     dropped = {}
     for code in [c for c in elements if c.endswith("b")]:
         stem = code[:-1]
-        if stem in elements and elements[stem]["base_value"] != elements[code]["base_value"]:
+        if stem in elements and (
+            elements[stem]["base_value"] != elements[code]["base_value"]
+            or elements[stem]["goe"] != elements[code]["goe"]
+        ):
             raise SystemExit(
                 f"{code} is not value-neutral against {stem} "
                 f"({elements[code]['base_value']} vs {elements[stem]['base_value']}). "
