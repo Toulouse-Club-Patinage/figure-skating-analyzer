@@ -115,8 +115,9 @@ export function useProgramBuilder(sov: SovData | undefined) {
         const currentJumps = el.comboJumps ?? [{ code: el.baseCode, markers: [] }];
         if (currentJumps.length >= 3) return el;
 
-        // Euler only allowed in position 2 of a 3-jump combo
-        if (jumpCode === "1Eu" && currentJumps.length !== 1) return el;
+        // The Euler sits between two listed jumps, in a combination or a
+        // sequence alike. It cannot open or close the element.
+        if (jumpCode === "Eu" && currentJumps.length !== 1) return el;
 
         const newJumps = [...currentJumps, { code: jumpCode, markers: [] }];
         const newBaseCode = newJumps.map(j => j.code).join("+");

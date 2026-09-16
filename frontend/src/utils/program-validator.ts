@@ -44,6 +44,31 @@ function isQuad(code: string): boolean {
   return jumpRotation(code) >= 4;
 }
 
+/** The Euler is an unlisted jump: worth nothing and outside the jump count. */
+export function isEuler(code: string): boolean {
+  return code === "Eu";
+}
+
+/**
+ * Number of *listed* jumps in an element. The Euler is excluded — the Book:
+ * "il ne sera pas considéré comme un saut listé et ne comptera pas dans le
+ * nombre de sauts autorisés dans la combo ou la séquence concernée".
+ */
+export function countListedJumps(element: ProgramElement): number {
+  const codes = element.comboJumps?.map(j => j.code) ?? [element.baseCode];
+  return codes.filter(c => !isEuler(c)).length;
+}
+
+/** Total Eulers across the whole program. */
+function countEulers(elements: ProgramElement[]): number {
+  let total = 0;
+  for (const el of elements) {
+    const codes = el.comboJumps?.map(j => j.code) ?? [el.baseCode];
+    total += codes.filter(isEuler).length;
+  }
+  return total;
+}
+
 /**
  * Validate a program against a specific category segment's rules.
  * Returns a list of validation results (pass, warning, or violation).
@@ -223,6 +248,28 @@ export function validateProgram(
       label: "Axel requis",
       status: hasAxel ? "ok" : "warning",
       detail: hasAxel ? "Axel présent" : "Pas d'Axel (requis en PC)",
+    });
+  }
+
+  // Euler — forbidden in short programs, at most one per free program
+  const eulerCount = countEulers(elements);
+  if (rules.euler_allowed === false) {
+    results.push({
+      rule: "euler_allowed",
+      label: "Euler",
+      status: eulerCount > 0 ? "error" : "ok",
+      detail: eulerCount > 0
+        ? "Euler interdit en programme court"
+        : "Aucun Euler",
+    });
+  } else if (eulerCount > 0) {
+    results.push({
+      rule: "euler_count",
+      label: "Euler",
+      status: eulerCount > 1 ? "error" : "ok",
+      detail: eulerCount > 1
+        ? `${eulerCount}/1 — un seul Euler autorisé sur l'ensemble du programme`
+        : "1/1",
     });
   }
 
