@@ -120,6 +120,19 @@ export function validateProgram(
     });
   }
 
+  // Choreographic spin — counted among the spins, mandatory for ISU Senior/Junior FS
+  if (rules.requires_choreo_spin) {
+    const hasChoreoSpin = spinElements.some(e => e.baseCode.startsWith("ChSp"));
+    results.push({
+      rule: "requires_choreo_spin",
+      label: "Pirouette chorégraphique",
+      status: hasChoreoSpin ? "ok" : "warning",
+      detail: hasChoreoSpin
+        ? "Présente"
+        : "Absente — requise dans cette catégorie",
+    });
+  }
+
   // Max steps
   if (rules.max_steps != null) {
     const count = stepElements.length;
