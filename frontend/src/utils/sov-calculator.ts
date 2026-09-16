@@ -1,27 +1,18 @@
 import type { SovData, SovElement } from "../api/client";
 
-/** Jump rotation number extracted from code (e.g., "3" from "3Lz"). */
-function getJumpRotation(code: string): number | null {
-  const m = code.match(/^(\d)/);
-  return m ? parseInt(m[1], 10) : null;
-}
-
-/** Downgrade a jump code by reducing rotation by 1 (e.g., "3Lz" → "2Lz", "2A" → "1A"). */
-function downgradeCode(code: string): string | null {
-  const rotation = getJumpRotation(code);
-  if (rotation == null || rotation <= 1) return null;
-  return code.replace(/^\d/, String(rotation - 1));
-}
-
 /**
  * Compose the SOV lookup code from a base element code and its active markers.
  *
  * - Markers `e` and `<` add suffixes to the code (order: `e` then `<`).
- * - Marker `<<` transforms the code to rotation-1 (then any `e` suffix is applied).
+ * - Marker `<<` adds a `<<` suffix. Since 2026-2027 the SOV ships an explicit row
+ *   for every downgraded jump, so this is a lookup and no longer a rotation-1
+ *   derivation — the two disagree for quints (5S<< is 9.50, 4S is 9.70).
  * - Marker `V` adds `V` suffix (spins only — e.g., CCoSp3 → CCoSp3V).
  * - Markers `q`, `!`, `*`, `x`, `+REP` do NOT affect the SOV lookup code.
  *
- * Returns null if the composed code doesn't exist in the SOV (e.g., downgrading a 1T).
+ * The return type stays `string | null` so callers need no change, but composing
+ * can no longer fail: every marker combination is a suffix. A code with no SOV row
+ * (1T<<) is caught downstream by the lookup, which returns 0.
  */
 export function composeSovCode(baseCode: string, markers: string[]): string | null {
   const hasDowngrade = markers.includes("<<");
@@ -31,16 +22,10 @@ export function composeSovCode(baseCode: string, markers: string[]): string | nu
 
   let code = baseCode;
 
-  if (hasDowngrade) {
-    const downgraded = downgradeCode(code);
-    if (!downgraded) return null;
-    code = downgraded;
-  }
-
-  // Build suffix: V for spins, edge then under-rotation for jumps
   if (hasV) code += "V";
   if (hasEdge) code += "e";
-  if (hasUnderRotation && !hasDowngrade) code += "<";
+  if (hasDowngrade) code += "<<";
+  else if (hasUnderRotation) code += "<";
 
   return code;
 }
