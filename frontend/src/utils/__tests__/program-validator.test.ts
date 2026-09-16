@@ -106,3 +106,33 @@ describe("choreographic spin", () => {
     expect(ruleOf(results, "requires_choreo_spin")).toBeUndefined();
   });
 });
+
+const seniorPL: ProgramRuleSegment = {
+  max_jump_elements: 6, quads_allowed: true, quints_allowed: true, euler_allowed: true,
+};
+const juniorPL: ProgramRuleSegment = {
+  max_jump_elements: 6, quads_allowed: false, quints_allowed: false, euler_allowed: true,
+};
+
+describe("quint jumps", () => {
+  it("are rejected in a category that forbids them", () => {
+    const results = validateProgram([jump(["5Lz"])], juniorPL);
+    expect(ruleOf(results, "quints_allowed")?.status).toBe("error");
+  });
+
+  it("are accepted as a solo jump in ISU Senior free skating", () => {
+    const results = validateProgram([jump(["5Lz"])], seniorPL);
+    expect(ruleOf(results, "quints_allowed")).toBeUndefined();
+    expect(ruleOf(results, "quint_solo_only")?.status).toBe("ok");
+  });
+
+  it("are rejected inside a combination even where allowed", () => {
+    const results = validateProgram([jump(["5Lz", "3T"])], seniorPL);
+    expect(ruleOf(results, "quint_solo_only")?.status).toBe("error");
+  });
+
+  it("are rejected inside a sequence even where allowed", () => {
+    const results = validateProgram([jump(["5Lz", "Eu", "2A"])], seniorPL);
+    expect(ruleOf(results, "quint_solo_only")?.status).toBe("error");
+  });
+});

@@ -44,6 +44,11 @@ function isQuad(code: string): boolean {
   return jumpRotation(code) >= 4;
 }
 
+/** Quintuple jump (rotation 5). */
+function isQuint(code: string): boolean {
+  return jumpRotation(code) === 5;
+}
+
 /** The Euler is an unlisted jump: worth nothing and outside the jump count. */
 export function isEuler(code: string): boolean {
   return code === "Eu";
@@ -176,6 +181,32 @@ export function validateProgram(
       label: "Quadruples",
       status: hasQuad ? "error" : "ok",
       detail: hasQuad ? "Quadruples présents — interdit" : "Aucun quadruple",
+    });
+  }
+
+  // Quints — allowed only in ISU Senior free skating, and only as solo jumps
+  const quintCodes = allJumpCodes.filter(isQuint);
+  if (!rules.quints_allowed) {
+    if (quintCodes.length > 0) {
+      results.push({
+        rule: "quints_allowed",
+        label: "Quintuples",
+        status: "error",
+        detail: `Quintuples présents (${quintCodes.join(", ")}) — interdit`,
+      });
+    }
+  } else if (quintCodes.length > 0) {
+    // SOV remark 6: in the free skating a quint can only be an individual jump.
+    const inMultiJump = jumpElements.some(
+      el => countListedJumps(el) > 1 && (el.comboJumps ?? []).some(j => isQuint(j.code)),
+    );
+    results.push({
+      rule: "quint_solo_only",
+      label: "Quintuples",
+      status: inMultiJump ? "error" : "ok",
+      detail: inMultiJump
+        ? "Un quintuple ne peut pas figurer dans une combinaison ni une séquence"
+        : "Sauts individuels uniquement",
     });
   }
 
