@@ -1,0 +1,94 @@
+import json
+from pathlib import Path
+
+import pytest
+
+DATA_DIR = Path(__file__).resolve().parent.parent / "app" / "data"
+
+
+@pytest.fixture(scope="module")
+def sov() -> dict:
+    with open(DATA_DIR / "sov_2026_2027.json") as f:
+        return json.load(f)
+
+
+def test_season(sov):
+    assert sov["season"] == "2026-2027"
+
+
+def test_euler_has_no_value(sov):
+    """2026-27: the Euler is an unlisted jump, worth nothing."""
+    eu = sov["elements"]["Eu"]
+    assert eu["base_value"] == 0.0
+    assert eu["goe"] == [0.0] * 10
+    assert "1Eu" not in sov["elements"]
+
+
+def test_choreographic_spin_exists(sov):
+    chsp = sov["elements"]["ChSp1"]
+    assert chsp["base_value"] == 3.50
+    # Typed as a spin: the Book counts it among the three allowed spins.
+    assert chsp["type"] == "spin"
+    assert sov["elements"]["ChPSp1"]["base_value"] == 3.50
+    assert sov["elements"]["ChPLi1"]["base_value"] == 4.50
+
+
+def test_choreographic_step_sequence_revalued(sov):
+    assert sov["elements"]["ChSq1"]["base_value"] == 3.50
+
+
+def test_spins_revalued(sov):
+    """Spot-check the across-the-board spin increase."""
+    assert sov["elements"]["USp1"]["base_value"] == 1.40
+    assert sov["elements"]["SSp1"]["base_value"] == 1.60
+    assert sov["elements"]["CSp1"]["base_value"] == 1.70
+    assert sov["elements"]["LSp1"]["base_value"] == 1.80
+    assert sov["elements"]["FUSp1"]["base_value"] == 2.00
+    assert sov["elements"]["CCoSp4"]["base_value"] == 4.20
+
+
+def test_quints_present(sov):
+    """Communication 2786 gives every clean quint the same base value."""
+    for code in ("5T", "5S", "5Lo", "5F", "5Lz"):
+        assert sov["elements"][code]["base_value"] == 14.00, code
+
+
+def test_downgraded_quints_are_not_the_quad_value(sov):
+    """The reason << must be a lookup and not a rotation-1 derivation."""
+    assert sov["elements"]["5S<<"]["base_value"] == 9.50
+    assert sov["elements"]["4S"]["base_value"] == 9.70
+    assert sov["elements"]["5Lz<<"]["base_value"] == 9.50
+    assert sov["elements"]["4Lz"]["base_value"] == 11.50
+
+
+def test_triple_axel_recovered_from_column_artefact(sov):
+    """3A loses its label in the PDF text layer; the generator must recover it."""
+    assert sov["elements"]["3A"]["base_value"] == 8.00
+
+
+def test_pair_elements_revalued(sov):
+    assert sov["elements"]["3ATh"]["base_value"] == 6.00
+    assert sov["elements"]["4Tw1"]["base_value"] == 6.80
+    assert sov["elements"]["BoDs1"]["base_value"] == 3.60
+    assert sov["elements"]["FiDs1"]["base_value"] == 2.90
+
+
+def test_twist_under_rotation_uses_double_chevron(sov):
+    """The legend now reads "<< - downgraded jump / downgraded twist lift"."""
+    assert "1Tw1<<" in sov["elements"]
+    assert "1Tw1<" not in sov["elements"]
+
+
+def test_bodsn_codes_are_gone(sov):
+    assert not [c for c in sov["elements"] if c.startswith("BoDsN")]
+
+
+def test_no_bonus_suffixed_rows(sov):
+    """b-rows are value-neutral duplicates and are dropped."""
+    assert not [c for c in sov["elements"] if c.endswith("b")]
+
+
+def test_every_element_has_ten_goe_values(sov):
+    for code, el in sov["elements"].items():
+        assert len(el["goe"]) == 10, code
+        assert el["category"] in ("single", "pair"), code
