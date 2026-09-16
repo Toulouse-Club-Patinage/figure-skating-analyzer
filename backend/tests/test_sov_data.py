@@ -92,3 +92,35 @@ def test_every_element_has_ten_goe_values(sov):
     for code, el in sov["elements"].items():
         assert len(el["goe"]) == 10, code
         assert el["category"] in ("single", "pair"), code
+
+
+def test_goe_array_ordering_is_pinned_for_a_nonzero_element(sov):
+    """The goe array is [-5..-1, +1..+5]; the BASE column is not in it.
+
+    Communication 2786 lists 3T as:
+        3T  -2,10  -1,68  -1,26  -0,84  -0,42  | 4,20 |  0,42  0,84  1,26  1,68  2,10
+
+    Pinned value-by-value because the slice that drops the BASE column is easy
+    to get subtly wrong: ``values[0:5] + values[5:10]`` would splice the base
+    value in at index 5 and silently lose the +5 step. 3T is a safe witness --
+    its array is not equal to its own reverse, so a flipped slice cannot pass.
+    """
+    el = sov["elements"]["3T"]
+    assert el["base_value"] == 4.20
+    assert el["goe"] == [-2.10, -1.68, -1.26, -0.84, -0.42,
+                         0.42, 0.84, 1.26, 1.68, 2.10]
+
+
+def test_goe_arrays_are_signed_ascending_and_never_contain_the_base_value(sov):
+    """Structural form of the same ordering, over every element."""
+    for code, el in sov["elements"].items():
+        base, goe = el["base_value"], el["goe"]
+        if base == 0.0:
+            assert goe == [0.0] * 10, code
+            continue
+        reductions, bonuses = goe[:5], goe[5:]
+        assert all(v < 0 for v in reductions), code
+        assert all(v > 0 for v in bonuses), code
+        assert all(a < b for a, b in zip(reductions, reductions[1:])), code
+        assert all(a < b for a, b in zip(bonuses, bonuses[1:])), code
+        assert base not in goe, code
