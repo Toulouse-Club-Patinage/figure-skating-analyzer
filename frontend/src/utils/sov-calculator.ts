@@ -241,6 +241,24 @@ export function isJump(sov: SovData, code: string): boolean {
 }
 
 /**
+ * A "clean" code carries no execution marker.
+ *
+ * Since 2026-2027 the SOV ships an explicit row for every marker combination
+ * (3Lzq, 3Lz!, 3Lz<<, 3Lze<<, 4Tw1<<...), so the picker has to allow-list
+ * rather than exclude the handful of shapes the 2025-26 dataset happened to use.
+ *
+ * Levels and rotations are part of the code, not markers, so digits stay allowed:
+ * CCoSp4, ChSp1, StSq3, 3Lz, 1A are all clean. No legitimate element code ends
+ * in q, e or V — verified against the generated dataset in step 5.
+ */
+function isCleanCode(code: string): boolean {
+  // Rejects the non-alphanumeric markers: <, <<, !, *, +
+  if (!/^[A-Za-z0-9]+$/.test(code)) return false;
+  // Rejects the alphanumeric suffix markers: q (quarter), e (wrong edge), V (reduced spin)
+  return !/[qeV]$/.test(code);
+}
+
+/**
  * Get the available base element codes (without marker variants) from SOV,
  * optionally filtered by category.
  */
@@ -251,8 +269,7 @@ export function getBaseElements(
   const groups: Record<string, string[]> = {};
 
   for (const [code, el] of Object.entries(sov.elements)) {
-    // Skip marker variants (codes containing <, e suffix, V suffix for spins)
-    if (code.includes("<") || /e$/.test(code) || /V$/.test(code)) continue;
+    if (!isCleanCode(code)) continue;
     // Skip pair elements if not included
     if (!includePairs && el.category === "pair") continue;
 
