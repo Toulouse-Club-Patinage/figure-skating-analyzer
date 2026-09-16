@@ -49,9 +49,13 @@ function isQuint(code: string): boolean {
   return jumpRotation(code) === 5;
 }
 
-/** The Euler is an unlisted jump: worth nothing and outside the jump count. */
+/**
+ * The Euler is an unlisted jump: worth nothing and outside the jump count.
+ * Protocols imported under the pre-2026 notation spell it "1Eu"; the 2026/2027
+ * SOV spells it "Eu". Both denote the same jump.
+ */
 export function isEuler(code: string): boolean {
-  return code === "Eu";
+  return code === "Eu" || code === "1Eu";
 }
 
 /**
@@ -242,7 +246,7 @@ export function validateProgram(
 
   // Allowed jumps (for Régional 3)
   if (rules.allowed_jumps) {
-    const forbidden = allJumpCodes.filter(c => !rules.allowed_jumps!.includes(c));
+    const forbidden = allJumpCodes.filter(c => !isEuler(c) && !rules.allowed_jumps!.includes(c));
     results.push({
       rule: "allowed_jumps",
       label: "Sauts autorisés",

@@ -61,6 +61,29 @@ describe("Euler", () => {
     expect(ruleOf(results, "euler_count")?.status).toBe("error");
     expect(ruleOf(results, "euler_count")?.detail).toContain("2/1");
   });
+
+  const regional3NiveauA: ProgramRuleSegment = {
+    label: "Régional 3 - Niveau A",
+    allowed_jumps: ["1S", "1T", "1Lo", "1F", "1Lz"],
+    euler_allowed: true,
+  };
+
+  it("does not contradict euler_allowed: an Euler is not an unlisted jump under allowed_jumps", () => {
+    const results = validateProgram([jump(["1F", "Eu", "1S"])], regional3NiveauA);
+    expect(ruleOf(results, "allowed_jumps")?.status).toBe("ok");
+    expect(ruleOf(results, "euler_count")?.status).toBe("ok");
+  });
+
+  it("recognises the pre-2026 '1Eu' notation used by imported protocols", () => {
+    expect(countListedJumps(jump(["3F", "1Eu", "3S"]))).toBe(2);
+
+    const results = validateProgram(
+      [jump(["3F", "Eu", "3S"]), jump(["2Lz", "1Eu", "2S"])],
+      freeSkating,
+    );
+    expect(ruleOf(results, "euler_count")?.status).toBe("error");
+    expect(ruleOf(results, "euler_count")?.detail).toContain("2/1");
+  });
 });
 
 function spin(code: string): ProgramElement {
