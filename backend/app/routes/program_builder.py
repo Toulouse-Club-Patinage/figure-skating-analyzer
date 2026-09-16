@@ -16,7 +16,7 @@ _rules_cache: dict | None = None
 def _load_sov() -> dict:
     global _sov_cache
     if _sov_cache is None:
-        with open(_DATA_DIR / "sov_2025_2026.json") as f:
+        with open(_DATA_DIR / "sov_2026_2027.json") as f:
             _sov_cache = json.load(f)
     return _sov_cache
 
@@ -24,7 +24,7 @@ def _load_sov() -> dict:
 def _load_rules() -> dict:
     global _rules_cache
     if _rules_cache is None:
-        with open(_DATA_DIR / "program_rules_2025_2026.json") as f:
+        with open(_DATA_DIR / "program_rules_2026_2027.json") as f:
             _rules_cache = json.load(f)
     return _rules_cache
 

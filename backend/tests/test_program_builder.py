@@ -11,7 +11,7 @@ async def test_get_sov_as_coach(client, coach_token):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["season"] == "2025-2026"
+    assert data["season"] == "2026-2027"
     assert "elements" in data
     assert "3Lz" in data["elements"]
     el = data["elements"]["3Lz"]
@@ -61,7 +61,7 @@ async def test_get_rules_as_coach(client, coach_token):
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["season"] == "2025-2026"
+    assert data["season"] == "2026-2027"
     assert "categories" in data
     assert len(data["categories"]) >= 10
 
