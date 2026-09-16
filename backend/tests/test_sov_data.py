@@ -323,13 +323,17 @@ def test_allowed_spins_key_mismatch_is_known_and_deliberate(rules):
     touch this file discovers the mismatch instead of re-deriving it, rather
     than "fixing" it by accident.
     """
-    regional_3_segments_with_spins = []
+    with_spins = []
     for cat, c in rules["categories"].items():
         for seg_key, seg in c["segments"].items():
             if "allowed_spins" in seg:
-                regional_3_segments_with_spins.append((cat, seg_key))
+                with_spins.append(cat)
             assert "allowed_spin_types" not in seg, f"{cat}/{seg_key}"
-    assert len(regional_3_segments_with_spins) == 3
+    assert sorted(with_spins) == [
+        "Regional 3 - Niveau A",
+        "Regional 3 - Niveau B",
+        "Regional 3 - Niveau C",
+    ]
 
 
 def test_allowed_jumps_exist_in_sov(rules, sov):

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import type { SovData } from "../../api/client";
 import type { ProgramElement } from "../../utils/program-validator";
+import { isEuler } from "../../utils/program-validator";
 import type { BonusResult } from "../../utils/program-bonus";
 import { getComboGoeBreakdown } from "../../utils/sov-calculator";
 import {
@@ -140,7 +141,10 @@ function SortableRow({
   };
 
   const isCombo = el.comboJumps && el.comboJumps.length > 1;
-  const canAddCombo = el.type === "jump" && (!el.comboJumps || el.comboJumps.length < 3);
+  // The Euler is free: it does not count against the three-listed-jump cap,
+  // so 3F+2T+Eu+3S must stay reachable from the "+" button.
+  const listedJumps = (el.comboJumps ?? []).filter(j => !isEuler(j.code)).length;
+  const canAddCombo = el.type === "jump" && (!el.comboJumps || listedJumps < 3);
   const rowBg = index % 2 === 0 ? "bg-surface-container-lowest" : "bg-surface-container-low/30";
 
   return (
@@ -166,7 +170,7 @@ function SortableRow({
             sov={sov}
             includePairs={includePairs}
             elementId={el.id}
-            currentJumps={el.comboJumps?.length ?? 1}
+            currentJumps={el.comboJumps ? listedJumps : 1}
             onAdd={onAddComboJump}
           />
         )}
