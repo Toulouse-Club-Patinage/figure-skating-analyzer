@@ -143,6 +143,12 @@ describe("quint jumps", () => {
     expect(ruleOf(results, "quints_allowed")?.status).toBe("error");
   });
 
+  it("do not also raise the quad rule in a category forbidding both", () => {
+    const results = validateProgram([jump(["5Lz"])], juniorPL);
+    expect(ruleOf(results, "quads_allowed")?.status).toBe("ok");
+    expect(ruleOf(results, "quints_allowed")?.status).toBe("error");
+  });
+
   it("are accepted as a solo jump in ISU Senior free skating", () => {
     const results = validateProgram([jump(["5Lz"])], seniorPL);
     expect(ruleOf(results, "quints_allowed")).toBeUndefined();

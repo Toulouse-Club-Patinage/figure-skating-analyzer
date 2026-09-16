@@ -38,10 +38,10 @@ function isTriple(code: string): boolean {
 }
 
 /**
- * Check if a jump code is a quad (rotation 4+).
+ * Check if a jump code is a quad (rotation 4). Quintuples have their own rule.
  */
 function isQuad(code: string): boolean {
-  return jumpRotation(code) >= 4;
+  return jumpRotation(code) === 4;
 }
 
 /** Quintuple jump (rotation 5). */
@@ -190,7 +190,7 @@ export function validateProgram(
 
   // Quints — allowed only in ISU Senior free skating, and only as solo jumps
   const quintCodes = allJumpCodes.filter(isQuint);
-  if (!rules.quints_allowed) {
+  if (rules.quints_allowed !== true) {
     if (quintCodes.length > 0) {
       results.push({
         rule: "quints_allowed",

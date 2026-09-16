@@ -226,13 +226,6 @@ export function isFlipOrLutz(code: string): boolean {
 }
 
 /**
- * Check if an element code is an Axel type.
- */
-export function isAxel(code: string): boolean {
-  return /\dA$/.test(code) || code === "1Eu";
-}
-
-/**
  * Check if an element code represents a jump (for combo/modifier logic).
  */
 export function isJump(sov: SovData, code: string): boolean {
