@@ -423,7 +423,7 @@ export default function ProgramTable({
                           className={`ml-2 ${l.earned ? "text-primary" : "text-on-surface-variant/50 line-through"}`}
                           title={l.detail}
                         >
-                          {l.label} +{l.points.toFixed(0)}
+                          {l.label} <span className="font-mono">+{l.points.toFixed(0)}</span>
                         </span>
                       ))}
                     </span>
