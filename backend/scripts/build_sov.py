@@ -127,9 +127,13 @@ def drop_bonus_duplicates(elements: dict[str, dict]) -> dict[str, dict]:
             elements[stem]["base_value"] != elements[code]["base_value"]
             or elements[stem]["goe"] != elements[code]["goe"]
         ):
+            reason = (
+                f"{elements[code]['base_value']} vs {elements[stem]['base_value']}"
+                if elements[stem]["base_value"] != elements[code]["base_value"]
+                else "same base value, differing GOE"
+            )
             raise SystemExit(
-                f"{code} is not value-neutral against {stem} "
-                f"({elements[code]['base_value']} vs {elements[stem]['base_value']}). "
+                f"{code} is not value-neutral against {stem} ({reason}). "
                 "The bonus rows now carry value — they can no longer be dropped."
             )
         dropped[code] = elements.pop(code)
