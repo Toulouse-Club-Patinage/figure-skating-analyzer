@@ -148,6 +148,40 @@ def test_all_2025_categories_still_present(rules):
     assert set(rules["categories"]) == expected
 
 
+# Hardcoded on purpose. Every other rules test iterates ``c["segments"].items()``
+# and quietly does nothing when a segment is absent, so a dropped segment would
+# pass the whole suite unnoticed. The map is spelled out here rather than read
+# from program_rules_2025_2026.json because Task 3 deletes that file, and rather
+# than derived from the file under test because an expectation computed from its
+# own subject asserts nothing.
+EXPECTED_SEGMENTS = {
+    "ISU Senior": {"PC", "PL"},
+    "ISU Junior": {"PC", "PL"},
+    "ISU Advanced Novice": {"PC", "PL"},
+    "ISU Intermediate Novice": {"PL"},
+    "ISU Basic Novice": {"PL"},
+    "Regional 3 - Niveau C": {"PL"},
+    "Regional 3 - Niveau B": {"PL"},
+    "Regional 3 - Niveau A": {"PL"},
+    "Adulte Master Elite": {"PL"},
+    "Adulte Or": {"PL"},
+    "Adulte Argent": {"PL"},
+    "Adulte Bronze": {"PL"},
+    "Occitanie Exhibition": {"PL"},
+    "Occitanie Duo": {"PL"},
+}
+
+
+def test_every_category_keeps_its_segments(rules):
+    """Only Senior, Junior and Advanced Novice are skated over two segments.
+
+    Catches a segment silently disappearing, which the category-name check above
+    cannot see.
+    """
+    actual = {cat: set(c["segments"]) for cat, c in rules["categories"].items()}
+    assert actual == EXPECTED_SEGMENTS
+
+
 def test_isu_senior_free_skating(rules):
     """Six jump elements (was seven), three spins including the choreo spin."""
     seg = rules["categories"]["ISU Senior"]["segments"]["PL"]
@@ -201,6 +235,29 @@ def test_quints_never_allowed_where_quads_are_not(rules):
                 assert seg.get("quads_allowed") is True, f"{cat}/{seg_key}"
 
 
+def test_choreo_spin_required_only_in_isu_senior_and_junior_free_skating(rules):
+    """Pins the negative case: only two segments may carry the flag as True.
+
+    The Book lists "une pirouette chorégraphique" among the three spins of the
+    Senior PL (p. 30) and Junior PL (p. 31) only. Advanced Novice PL asks for a
+    combination spin and a flying spin instead, and no short program has a third
+    spin box at all -- a stray True on a PC segment would be caught here.
+    """
+    required = {
+        (cat, seg_key)
+        for cat, c in rules["categories"].items()
+        for seg_key, seg in c["segments"].items()
+        if seg.get("requires_choreo_spin")
+    }
+    assert required == {("ISU Senior", "PL"), ("ISU Junior", "PL")}
+
+    # Every segment must state the flag explicitly, so that a key deleted by
+    # accident cannot pass itself off as a deliberate False.
+    for cat, c in rules["categories"].items():
+        for seg_key, seg in c["segments"].items():
+            assert isinstance(seg.get("requires_choreo_spin"), bool), f"{cat}/{seg_key}"
+
+
 def test_euler_forbidden_in_short_programs(rules):
     for cat, c in rules["categories"].items():
         for seg_key, seg in c["segments"].items():
@@ -242,8 +299,14 @@ def test_advanced_novice_jump_bonuses(rules):
     assert pl["second_different_triple"] == 1
 
 
-def test_allowed_jumps_and_spins_exist_in_sov(rules, sov):
-    """A typo in an allowed_jumps entry would silently forbid everything."""
+def test_allowed_jumps_exist_in_sov(rules, sov):
+    """A typo in an allowed_jumps entry would silently forbid everything.
+
+    Deliberately not extended to ``allowed_spins``: those entries are base
+    abbreviations (USp, CoSp, CUSp) that are never SOV keys on their own -- the
+    SOV only carries leveled variants (USp1, USpB, CoSp4V), so the same lookup
+    would fail on every Régional 3 row.
+    """
     for cat, c in rules["categories"].items():
         for seg_key, seg in c["segments"].items():
             for code in seg.get("allowed_jumps", []):
