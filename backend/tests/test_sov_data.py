@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -311,38 +312,51 @@ def test_every_segment_states_euler_allowed_explicitly(rules):
     assert n == 17
 
 
-def test_allowed_spins_key_mismatch_is_known_and_deliberate(rules):
-    """The data writes ``allowed_spins``; the TypeScript validator
-    (program-validator.ts, ``rules.allowed_spin_types``) and client.ts read
-    ``allowed_spin_types``, so Régional 3 spin validation has never executed.
+def test_regional_3_uses_the_key_the_validator_reads(rules):
+    """The spin-type rule is keyed ``allowed_spin_types``.
 
-    This is a known, deliberate mismatch -- NOT renamed in the Book/SOV
-    2026-2027 branch, because renaming the JSON key would silently switch a
-    dormant rule on for real users, which is a behaviour change nobody asked
-    for. This test pins the current (mismatched) state so the next person to
-    touch this file discovers the mismatch instead of re-deriving it, rather
-    than "fixing" it by accident.
+    It was written ``allowed_spins`` for two seasons, which the validator
+    (program-validator.ts) and client.ts never read, so Régional 3 spin
+    validation silently never ran. Renamed for 2026-2027. This test keeps the
+    data and the validator on the same key.
     """
-    with_spins = []
+    with_spin_types = []
     for cat, c in rules["categories"].items():
         for seg_key, seg in c["segments"].items():
-            if "allowed_spins" in seg:
-                with_spins.append(cat)
-            assert "allowed_spin_types" not in seg, f"{cat}/{seg_key}"
-    assert sorted(with_spins) == [
+            if "allowed_spin_types" in seg:
+                with_spin_types.append(cat)
+            assert "allowed_spins" not in seg, f"{cat}/{seg_key}: stale key"
+    assert sorted(with_spin_types) == [
         "Regional 3 - Niveau A",
         "Regional 3 - Niveau B",
         "Regional 3 - Niveau C",
     ]
 
 
+def test_allowed_spin_types_resolve_to_real_sov_spins(rules, sov):
+    """A typo in an allowed_spin_types entry would forbid a legal spin.
+
+    The entries are base abbreviations (USp, CoSp, CUSp), never SOV keys on
+    their own -- the SOV carries only leveled variants (USp1, USpB, CoSp4V).
+    So match on the stem the validator derives: it strips a trailing level and
+    an optional B/V marker from the element code.
+    """
+    stems = {
+        re.sub(r"[BV\d]+$", "", code)
+        for code, el in sov["elements"].items()
+        if el["type"] == "spin"
+    }
+    for cat, c in rules["categories"].items():
+        for seg_key, seg in c["segments"].items():
+            for stem in seg.get("allowed_spin_types", []):
+                assert stem in stems, f"{cat}/{seg_key}: {stem}"
+
+
 def test_allowed_jumps_exist_in_sov(rules, sov):
     """A typo in an allowed_jumps entry would silently forbid everything.
 
-    Deliberately not extended to ``allowed_spins``: those entries are base
-    abbreviations (USp, CoSp, CUSp) that are never SOV keys on their own -- the
-    SOV only carries leveled variants (USp1, USpB, CoSp4V), so the same lookup
-    would fail on every Régional 3 row.
+    Spin types are checked separately, by stem -- see
+    test_allowed_spin_types_resolve_to_real_sov_spins.
     """
     for cat, c in rules["categories"].items():
         for seg_key, seg in c["segments"].items():

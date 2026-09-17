@@ -232,7 +232,7 @@
           "euler_allowed": true,
           "axel_required": false,
           "combo_allowed": false,
-          "allowed_spins": ["USp"],
+          "allowed_spin_types": ["USp"],
           "component_factor_f": 1.5,
           "component_factor_m": 1.5,
           "bonus_second_half": true
@@ -260,7 +260,7 @@
           "euler_allowed": true,
           "axel_required": false,
           "combo_allowed": false,
-          "allowed_spins": ["USp", "LSp", "SSp", "CSp"],
+          "allowed_spin_types": ["USp", "LSp", "SSp", "CSp"],
           "component_factor_f": 2.0,
           "component_factor_m": 2.0,
           "bonus_second_half": true
@@ -290,7 +290,7 @@
           "combo_allowed": true,
           "max_combo_jumps": 2,
           "max_combos": 2,
-          "allowed_spins": ["USp", "LSp", "SSp", "CSp", "CUSp", "CLSp", "CSSp", "CCSp", "CoSp"],
+          "allowed_spin_types": ["USp", "LSp", "SSp", "CSp", "CUSp", "CLSp", "CSSp", "CCSp", "CoSp"],
           "component_factor_f": 2.0,
           "component_factor_m": 2.0,
           "bonus_second_half": true

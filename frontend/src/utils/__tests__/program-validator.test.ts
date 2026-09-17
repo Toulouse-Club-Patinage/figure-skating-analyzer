@@ -98,6 +98,31 @@ const seniorFreeSkating: ProgramRuleSegment = {
   euler_allowed: true,
 };
 
+const regional3NiveauB: ProgramRuleSegment = {
+  label: "Régional 3 - Niveau B",
+  max_spins: 2,
+  allowed_spin_types: ["USp", "LSp", "SSp", "CSp"],
+};
+
+describe("allowed spin types", () => {
+  it("accepts a permitted spin whatever its level or V marker", () => {
+    const results = validateProgram([spin("USp1"), spin("CSp2V")], regional3NiveauB);
+    expect(ruleOf(results, "allowed_spin_types")?.status).toBe("ok");
+  });
+
+  it("rejects a spin type the level does not permit", () => {
+    const results = validateProgram([spin("USp1"), spin("FCCoSp3")], regional3NiveauB);
+    const r = ruleOf(results, "allowed_spin_types");
+    expect(r?.status).toBe("error");
+    expect(r?.detail).toContain("FCCoSp");
+  });
+
+  it("is not checked for categories that do not restrict spin types", () => {
+    const results = validateProgram([spin("FCCoSp4")], { max_spins: 3 });
+    expect(ruleOf(results, "allowed_spin_types")).toBeUndefined();
+  });
+});
+
 describe("choreographic spin", () => {
   it("counts toward max_spins", () => {
     const results = validateProgram(
