@@ -41,6 +41,15 @@
         <td colspan="3" style="text-transform: uppercase; font-size: 8pt; letter-spacing: 0.3pt; color: #2e6385;">Total valeur de base</td>
         <td class="num" style="color: #2e6385;">{{ "%.2f"|format(total_bv) }}</td>
       </tr>
+      {% if bonus and bonus.lines %}
+      <tr style="font-size: 8pt;">
+        <td colspan="3" style="color: #444;">
+          Bonus —
+          {% for l in bonus.lines %}<span style="{% if not l.earned %}text-decoration: line-through; color: #999;{% endif %}">{{ l.label }} +{{ "%.0f"|format(l.points) }}</span>{% if not loop.last %}, {% endif %}{% endfor %}
+        </td>
+        <td class="num" style="color: #2e6385;">+{{ "%.2f"|format(bonus.total) }}</td>
+      </tr>
+      {% endif %}
     </tfoot>
   </table>
 </div>

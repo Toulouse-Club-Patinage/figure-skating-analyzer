@@ -38,10 +38,44 @@ function isTriple(code: string): boolean {
 }
 
 /**
- * Check if a jump code is a quad (rotation 4+).
+ * Check if a jump code is a quad (rotation 4). Quintuples have their own rule.
  */
 function isQuad(code: string): boolean {
-  return jumpRotation(code) >= 4;
+  return jumpRotation(code) === 4;
+}
+
+/** Quintuple jump (rotation 5). */
+function isQuint(code: string): boolean {
+  return jumpRotation(code) === 5;
+}
+
+/**
+ * The Euler is an unlisted jump: worth nothing and outside the jump count.
+ * Protocols imported under the pre-2026 notation spell it "1Eu"; the 2026/2027
+ * SOV spells it "Eu". Both denote the same jump.
+ */
+export function isEuler(code: string): boolean {
+  return code === "Eu" || code === "1Eu";
+}
+
+/**
+ * Number of *listed* jumps in an element. The Euler is excluded — the Book:
+ * "il ne sera pas considéré comme un saut listé et ne comptera pas dans le
+ * nombre de sauts autorisés dans la combo ou la séquence concernée".
+ */
+export function countListedJumps(element: ProgramElement): number {
+  const codes = element.comboJumps?.map(j => j.code) ?? [element.baseCode];
+  return codes.filter(c => !isEuler(c)).length;
+}
+
+/** Total Eulers across the whole program. */
+function countEulers(elements: ProgramElement[]): number {
+  let total = 0;
+  for (const el of elements) {
+    const codes = el.comboJumps?.map(j => j.code) ?? [el.baseCode];
+    total += codes.filter(isEuler).length;
+  }
+  return total;
 }
 
 /**
@@ -95,6 +129,19 @@ export function validateProgram(
     });
   }
 
+  // Choreographic spin — counted among the spins, mandatory for ISU Senior/Junior FS
+  if (rules.requires_choreo_spin) {
+    const hasChoreoSpin = spinElements.some(e => e.baseCode.startsWith("ChSp"));
+    results.push({
+      rule: "requires_choreo_spin",
+      label: "Pirouette chorégraphique",
+      status: hasChoreoSpin ? "ok" : "warning",
+      detail: hasChoreoSpin
+        ? "Présente"
+        : "Absente — requise dans cette catégorie",
+    });
+  }
+
   // Max steps
   if (rules.max_steps != null) {
     const count = stepElements.length;
@@ -141,6 +188,32 @@ export function validateProgram(
     });
   }
 
+  // Quints — allowed only in ISU Senior free skating, and only as solo jumps
+  const quintCodes = allJumpCodes.filter(isQuint);
+  if (rules.quints_allowed !== true) {
+    if (quintCodes.length > 0) {
+      results.push({
+        rule: "quints_allowed",
+        label: "Quintuples",
+        status: "error",
+        detail: `Quintuples présents (${quintCodes.join(", ")}) — interdit`,
+      });
+    }
+  } else if (quintCodes.length > 0) {
+    // SOV remark 6: in the free skating a quint can only be an individual jump.
+    const inMultiJump = jumpElements.some(
+      el => countListedJumps(el) > 1 && (el.comboJumps ?? []).some(j => isQuint(j.code)),
+    );
+    results.push({
+      rule: "quint_solo_only",
+      label: "Quintuples",
+      status: inMultiJump ? "error" : "ok",
+      detail: inMultiJump
+        ? "Un quintuple ne peut pas figurer dans une combinaison ni une séquence"
+        : "Sauts individuels uniquement",
+    });
+  }
+
   // Max jump level (rotation)
   if (rules.max_jump_level != null) {
     const maxRot = Math.max(0, ...allJumpCodes.map(jumpRotation));
@@ -173,7 +246,7 @@ export function validateProgram(
 
   // Allowed jumps (for Régional 3)
   if (rules.allowed_jumps) {
-    const forbidden = allJumpCodes.filter(c => !rules.allowed_jumps!.includes(c));
+    const forbidden = allJumpCodes.filter(c => !isEuler(c) && !rules.allowed_jumps!.includes(c));
     results.push({
       rule: "allowed_jumps",
       label: "Sauts autorisés",
@@ -223,6 +296,28 @@ export function validateProgram(
       label: "Axel requis",
       status: hasAxel ? "ok" : "warning",
       detail: hasAxel ? "Axel présent" : "Pas d'Axel (requis en PC)",
+    });
+  }
+
+  // Euler — forbidden in short programs, at most one per free program
+  const eulerCount = countEulers(elements);
+  if (rules.euler_allowed === false) {
+    results.push({
+      rule: "euler_allowed",
+      label: "Euler",
+      status: eulerCount > 0 ? "error" : "ok",
+      detail: eulerCount > 0
+        ? "Euler interdit en programme court"
+        : "Aucun Euler",
+    });
+  } else if (eulerCount > 0) {
+    results.push({
+      rule: "euler_count",
+      label: "Euler",
+      status: eulerCount > 1 ? "error" : "ok",
+      detail: eulerCount > 1
+        ? `${eulerCount}/1 — un seul Euler autorisé sur l'ensemble du programme`
+        : "1/1",
     });
   }
 

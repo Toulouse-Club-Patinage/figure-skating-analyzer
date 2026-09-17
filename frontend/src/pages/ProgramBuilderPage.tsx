@@ -3,6 +3,7 @@ import { useSovData } from "../hooks/useSovData";
 import { useProgramRules } from "../hooks/useProgramRules";
 import { useProgramBuilder } from "../hooks/useProgramBuilder";
 import { matchCategories, getBestMatch } from "../utils/category-matcher";
+import { computeBonus } from "../utils/program-bonus";
 import { request, downloadPdfPost } from "../api/client";
 import ElementPicker from "../components/program-builder/ElementPicker";
 import ProgramTable from "../components/program-builder/ProgramTable";
@@ -27,6 +28,15 @@ export default function ProgramBuilderPage() {
     loadFromScore,
     clearProgram,
   } = useProgramBuilder(sov);
+
+  // The bonus depends on the best-matching category's rules.
+  const bestMatch = rules && elements.length > 0
+    ? getBestMatch(matchCategories(elements, rules))
+    : null;
+  const bestSegment = bestMatch
+    ? rules?.categories[bestMatch.categoryName]?.segments[bestMatch.segmentKey]
+    : undefined;
+  const bonus = bestSegment ? computeBonus(elements, bestSegment) : undefined;
 
   if (sovLoading || rulesLoading) {
     return (
@@ -68,6 +78,9 @@ export default function ProgramBuilderPage() {
         status: r.status,
         detail: r.detail,
       })),
+      bonus: bonus && bonus.lines.length > 0
+        ? { total: bonus.total, lines: bonus.lines.map(l => ({ label: l.label, points: l.points, earned: l.earned })) }
+        : undefined,
     };
   }
 
@@ -169,6 +182,7 @@ export default function ProgramBuilderPage() {
           onReplaceElement={replaceElement}
           onDeleteElement={deleteElement}
           onReorder={reorderElements}
+          bonus={bonus}
         />
       </div>
 

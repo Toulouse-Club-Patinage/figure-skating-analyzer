@@ -1,27 +1,18 @@
 import type { SovData, SovElement } from "../api/client";
 
-/** Jump rotation number extracted from code (e.g., "3" from "3Lz"). */
-function getJumpRotation(code: string): number | null {
-  const m = code.match(/^(\d)/);
-  return m ? parseInt(m[1], 10) : null;
-}
-
-/** Downgrade a jump code by reducing rotation by 1 (e.g., "3Lz" → "2Lz", "2A" → "1A"). */
-function downgradeCode(code: string): string | null {
-  const rotation = getJumpRotation(code);
-  if (rotation == null || rotation <= 1) return null;
-  return code.replace(/^\d/, String(rotation - 1));
-}
-
 /**
  * Compose the SOV lookup code from a base element code and its active markers.
  *
  * - Markers `e` and `<` add suffixes to the code (order: `e` then `<`).
- * - Marker `<<` transforms the code to rotation-1 (then any `e` suffix is applied).
+ * - Marker `<<` adds a `<<` suffix. Since 2026-2027 the SOV ships an explicit row
+ *   for every downgraded jump, so this is a lookup and no longer a rotation-1
+ *   derivation — the two disagree for quints (5S<< is 9.50, 4S is 9.70).
  * - Marker `V` adds `V` suffix (spins only — e.g., CCoSp3 → CCoSp3V).
  * - Markers `q`, `!`, `*`, `x`, `+REP` do NOT affect the SOV lookup code.
  *
- * Returns null if the composed code doesn't exist in the SOV (e.g., downgrading a 1T).
+ * The return type stays `string | null` so callers need no change, but composing
+ * can no longer fail: every marker combination is a suffix. A code with no SOV row
+ * (1T<<) is caught downstream by the lookup, which returns 0.
  */
 export function composeSovCode(baseCode: string, markers: string[]): string | null {
   const hasDowngrade = markers.includes("<<");
@@ -31,16 +22,10 @@ export function composeSovCode(baseCode: string, markers: string[]): string | nu
 
   let code = baseCode;
 
-  if (hasDowngrade) {
-    const downgraded = downgradeCode(code);
-    if (!downgraded) return null;
-    code = downgraded;
-  }
-
-  // Build suffix: V for spins, edge then under-rotation for jumps
   if (hasV) code += "V";
   if (hasEdge) code += "e";
-  if (hasUnderRotation && !hasDowngrade) code += "<";
+  if (hasDowngrade) code += "<<";
+  else if (hasUnderRotation) code += "<";
 
   return code;
 }
@@ -241,18 +226,29 @@ export function isFlipOrLutz(code: string): boolean {
 }
 
 /**
- * Check if an element code is an Axel type.
- */
-export function isAxel(code: string): boolean {
-  return /\dA$/.test(code) || code === "1Eu";
-}
-
-/**
  * Check if an element code represents a jump (for combo/modifier logic).
  */
 export function isJump(sov: SovData, code: string): boolean {
   const el = sov.elements[code];
   return el?.type === "jump";
+}
+
+/**
+ * A "clean" code carries no execution marker.
+ *
+ * Since 2026-2027 the SOV ships an explicit row for every marker combination
+ * (3Lzq, 3Lz!, 3Lz<<, 3Lze<<, 4Tw1<<...), so the picker has to allow-list
+ * rather than exclude the handful of shapes the 2025-26 dataset happened to use.
+ *
+ * Levels and rotations are part of the code, not markers, so digits stay allowed:
+ * CCoSp4, ChSp1, StSq3, 3Lz, 1A are all clean. No legitimate element code ends
+ * in q, e or V — verified against the generated dataset in step 5.
+ */
+function isCleanCode(code: string): boolean {
+  // Rejects the non-alphanumeric markers: <, <<, !, *, +
+  if (!/^[A-Za-z0-9]+$/.test(code)) return false;
+  // Rejects the alphanumeric suffix markers: q (quarter), e (wrong edge), V (reduced spin)
+  return !/[qeV]$/.test(code);
 }
 
 /**
@@ -266,8 +262,7 @@ export function getBaseElements(
   const groups: Record<string, string[]> = {};
 
   for (const [code, el] of Object.entries(sov.elements)) {
-    // Skip marker variants (codes containing <, e suffix, V suffix for spins)
-    if (code.includes("<") || /e$/.test(code) || /V$/.test(code)) continue;
+    if (!isCleanCode(code)) continue;
     // Skip pair elements if not included
     if (!includePairs && el.category === "pair") continue;
 

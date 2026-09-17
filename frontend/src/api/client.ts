@@ -853,6 +853,14 @@ export interface SovData {
   elements: Record<string, SovElement>;
 }
 
+export interface ProgramBonusRules {
+  double_axel?: number;
+  triple?: number;
+  second_different_triple?: number;
+  jump_variety?: number;
+  death_spiral_level2?: number;
+}
+
 export interface ProgramRuleSegment {
   label?: string;
   duration?: string;
@@ -866,6 +874,10 @@ export interface ProgramRuleSegment {
   max_step_level?: number | null;
   triples_allowed?: boolean;
   quads_allowed?: boolean;
+  quints_allowed?: boolean;
+  requires_choreo_spin?: boolean;
+  euler_allowed?: boolean;
+  bonus?: ProgramBonusRules;
   combo_allowed?: boolean;
   max_combos?: number;
   max_combo_jumps?: number;

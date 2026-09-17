@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import type { SovData } from "../api/client";
 import type { ProgramElement } from "../utils/program-validator";
+import { isEuler } from "../utils/program-validator";
 import {
   calculateElementBV,
   calculateElementMin,
@@ -113,10 +114,14 @@ export function useProgramBuilder(sov: SovData | undefined) {
       prev.map(el => {
         if (el.id !== elementId) return el;
         const currentJumps = el.comboJumps ?? [{ code: el.baseCode, markers: [] }];
-        if (currentJumps.length >= 3) return el;
+        if (currentJumps.filter(j => !isEuler(j.code)).length >= 3) return el;
 
-        // Euler only allowed in position 2 of a 3-jump combo
-        if (jumpCode === "1Eu" && currentJumps.length !== 1) return el;
+        // The Euler sits between two listed jumps, in a combination or a
+        // sequence alike: it can never open the element, and never appear twice.
+        if (isEuler(jumpCode)
+            && (currentJumps.length === 0 || currentJumps.some(j => isEuler(j.code)))) {
+          return el;
+        }
 
         const newJumps = [...currentJumps, { code: jumpCode, markers: [] }];
         const newBaseCode = newJumps.map(j => j.code).join("+");
