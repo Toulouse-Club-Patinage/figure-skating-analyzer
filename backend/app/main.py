@@ -31,6 +31,7 @@ from app.routes.training import router as training_router
 from app.routes.notifications import router as notifications_router
 from app.routes.team_scores import router as team_scores_router
 from app.routes.program_builder import router as program_builder_router
+from app.routes.oauth import router as oauth_router
 
 
 logger = logging.getLogger(__name__)
@@ -133,6 +134,7 @@ app = Litestar(
         notifications_router,
         team_scores_router,
         program_builder_router,
+        oauth_router,
     ],
     cors_config=cors_config,
     lifespan=[lifespan],
