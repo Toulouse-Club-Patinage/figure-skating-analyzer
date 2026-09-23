@@ -46,8 +46,8 @@ export default function AuthorizePage() {
 
   const scopeText =
     user.role === "skater"
-      ? "les résultats de compétition de vos patineurs rattachés"
-      : "les résultats de compétition et les statistiques du club";
+      ? "aux résultats de compétition de vos patineurs rattachés"
+      : "aux résultats de compétition et aux statistiques du club";
 
   return (
     <div className="min-h-screen bg-surface flex items-center justify-center p-4">
@@ -65,7 +65,7 @@ export default function AuthorizePage() {
           <>
             <p className="text-sm text-on-surface mb-4">
               <span className="font-bold">{info.client_name}</span> demande un accès en{" "}
-              <span className="font-bold">lecture seule</span> à {scopeText}.
+              <span className="font-bold">lecture seule</span> {scopeText}.
             </p>
             <div className="bg-surface-container rounded-lg p-4 text-xs text-on-surface-variant space-y-1 mb-4">
               <p>Connecté en tant que <span className="text-on-surface font-semibold">{user.display_name}</span></p>
