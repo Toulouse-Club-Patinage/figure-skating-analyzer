@@ -1,7 +1,7 @@
 # Serveur MCP authentifié (interroger SkateLab depuis Claude)
 
 **Date** : 2026-09-23
-**Statut** : étude — design validé, spike (phase 0) à mener avant le plan d'implémentation
+**Statut** : design validé, spike (phase 0) réalisé le 2026-09-23 — plan : `docs/superpowers/plans/2026-09-23-serveur-mcp-authentifie.md`
 
 ## Problème
 
@@ -75,11 +75,12 @@ Avec `PUBLIC_BASE_URL=https://skatelab.toulouseclubpatinage.com` :
 | `/mcp` | Endpoint MCP (Streamable HTTP) — l'URL à saisir dans Claude |
 | `/.well-known/oauth-protected-resource/mcp` | Métadonnées de ressource protégée (RFC 9728), `resource` = `…/mcp`, `authorization_servers` = [issuer] |
 | `/.well-known/oauth-authorization-server` | Métadonnées du serveur d'autorisation (RFC 8414), issuer = `PUBLIC_BASE_URL` |
-| `/oauth/authorize` | Autorisation (redirige vers la page de consentement) |
-| `/oauth/token` | Échange de code, refresh |
-| `/oauth/register` | DCR |
-| `/oauth/revoke` | Révocation (RFC 7009) |
+| `/authorize` | Autorisation (redirige vers la page de consentement) |
+| `/token` | Échange de code, refresh |
+| `/register` | DCR |
+| `/revoke` | Révocation (RFC 7009) |
 | `/autorisation?demande=<id>` | Page React de consentement (UI en français) |
+| `GET /api/oauth/requests/{id}` | Détails de la demande pour la page de consentement |
 | `POST /api/oauth/consent` | Validation du consentement par l'utilisateur connecté (JWT habituel) |
 | `GET/DELETE /api/oauth/grants` | Liste / révocation des applications connectées |
 
@@ -97,7 +98,7 @@ backend/app/models/oauth.py   # OAuthClient, OAuthAuthRequest, OAuthToken
 backend/app/routes/oauth.py   # /api/oauth/consent, /api/oauth/grants
 frontend/src/pages/AuthorizePage.tsx          # /autorisation
 frontend/src/pages/ProfilePage.tsx            # + section « Applications connectées »
-nginx.conf                                    # + locations /mcp, /.well-known/oauth-, /oauth/
+nginx.conf                                    # + locations /mcp, /.well-known/oauth-, /authorize, /token, /register, /revoke
 ```
 
 Le SDK Python officiel (`mcp`) fournit le transport Streamable HTTP, les
@@ -109,9 +110,8 @@ implémente. Le choix de version (1.x vs 2.x) est tranché au spike.
 
 ### Enregistrement des clients
 
-- **DCR** activé (obligatoire en repli). **CIMD** en plus si le SDK le prend en
-  charge côté serveur (à vérifier au spike) — c'est ce que Claude Code et
-  claude.ai préfèrent, et cela évite l'accumulation de clients enregistrés.
+- **DCR** uniquement : le SDK 2.2 ne prend pas en charge CIMD côté serveur
+  (constaté au spike). Claude se rabat sur DCR, ce qui est supporté.
 - **Liste blanche de `redirect_uris`** : un enregistrement est refusé si une de
   ses URIs n'est pas l'une de :
   - `https://claude.ai/api/mcp/auth_callback`
@@ -120,7 +120,7 @@ implémente. Le choix de version (1.x vs 2.x) est tranché au spike.
 
   Le connecteur est ainsi réservé aux clients Claude : un site tiers ne peut pas
   s'enregistrer et hameçonner un consentement.
-- `/oauth/register` limité en débit (réutilisation de `auth/rate_limit.py`).
+- `/register` limité en débit (réutilisation de `auth/rate_limit.py`).
 - Purge des clients sans jeton actif depuis 30 jours (tâche dans la boucle de
   fond existante de `main.py`).
 
@@ -129,7 +129,7 @@ implémente. Le choix de version (1.x vs 2.x) est tranché au spike.
 1. Claude appelle `/mcp` sans jeton → `401` + `WWW-Authenticate: Bearer
    resource_metadata="{base}/.well-known/oauth-protected-resource/mcp",
    scope="skatelab:read"`.
-2. Découverte, (enregistrement), puis `GET /oauth/authorize` avec PKCE. Le SDK
+2. Découverte, (enregistrement), puis `GET /authorize` avec PKCE. Le SDK
    valide client / redirect / PKCE ; `provider.authorize()` enregistre une
    **demande en attente** (`oauth_auth_requests` : client, redirect_uri,
    code_challenge, state, scopes, resource, expiration 10 min) et redirige vers
@@ -147,7 +147,7 @@ implémente. Le choix de version (1.x vs 2.x) est tranché au spike.
    d'autorisation à usage unique (≥ 160 bits, 5 min) lié à l'utilisateur et
    renvoie l'URL de redirection (`redirect_uri?code=…&state=…`, ou
    `error=access_denied`). Le navigateur y est envoyé.
-5. `POST /oauth/token` : le SDK vérifie PKCE ; `exchange_authorization_code()`
+5. `POST /token` : le SDK vérifie PKCE ; `exchange_authorization_code()`
    consomme le code et émet access + refresh.
 
 ### Jetons
@@ -208,9 +208,9 @@ paramètre `limit`, tri) et la renvoyer en JSON. Tous les outils sont annotés
 | `club_element_mastery` | `GET /api/stats/element-mastery` | hors `skater` |
 | `competition_club_analysis` | `GET /api/stats/competition-club-analysis` | hors `skater` |
 
-Les outils réservés « hors `skater` » ne sont **pas listés** pour un jeton de
-rôle `skater` (moins de bruit pour Claude) ; la route renverrait de toute façon
-403.
+Les outils réservés « hors `skater` » restent listés pour tous (le SDK n'a pas
+de filtrage par utilisateur simple) : pour un `skater`, la route renvoie 403 et
+l'outil répond un message clair (« réservé à l'encadrement du club »).
 
 **Jamais sur la liste blanche** : `training`, `self_eval`, `me` hors `/api/me/skaters`,
 `admin`, `users`, `jobs`, `reports`, et toute route non-`GET`.
@@ -228,33 +228,54 @@ Relevé pendant l'étude : `GET /api/scores/`, `GET /api/scores/{id}/elements`,
 vérifient **ni le rôle ni le rattachement**. Un compte `skater` peut donc déjà
 lire tous les scores de tous les patineurs via l'API.
 
-C'est peut-être acceptable (ces résultats sont publiés sur les sites des
-ligues), mais le MCP rendrait l'accès trivial. **Décision à prendre avant la
-phase 2** :
-
-- soit on assume que les résultats de compétition sont publics pour tout compte
-  connecté (et on le documente) ;
-- soit on corrige ces routes (scoping `skater`) **avant** de les exposer —
-  recommandé, la correction profite aussi à l'app web.
-
-En attendant, `get_score_elements` et `get_team_scores` sont réservés aux rôles
-hors `skater`. La phase 2 inclut un **audit, sous forme de tests**, de chaque
+**Décision (2026-09-23) : on corrige ces routes avant d'exposer les outils.**
+Pour le rôle `skater` : `GET /api/scores/` et `GET /api/scores/category-results`
+ne renvoient que les patineurs rattachés ; `GET /api/scores/{id}/elements`
+vérifie le rattachement du patineur du score ; les routes `team-scores` /
+`team-medians` refusent le rôle `skater` (l'UI skater n'affiche pas ces pages).
+`get_score_elements` et `get_team_scores` suivent alors les mêmes règles que les
+autres outils. La phase 2 inclut un **audit, sous forme de tests**, de chaque
 route de la liste blanche avec un compte `skater` non rattaché.
 
 ## Déploiement
 
 - Nouvelle variable `PUBLIC_BASE_URL` (issuer et `resource` ; doit correspondre
   exactement à l'URL saisie dans Claude, sans slash final).
-- `nginx.conf` (image frontend) : `location /mcp` (`proxy_buffering off`,
+- `nginx.conf` (image frontend) : `location = /mcp` (`proxy_buffering off`,
   `proxy_read_timeout` long, en-têtes `X-Forwarded-*`), `location
-  /.well-known/oauth-`, `location /oauth/` → `backend:8000`. La route SPA
+  /.well-known/oauth-`, `location = /authorize|/token|/register|/revoke` →
+  `backend:8000`. En dev, le proxy Vite relaie les mêmes chemins. La route SPA
   `/autorisation` reste servie par le fallback.
 - VM GCP actuelle : son `docker-compose.yml` est écrit à la main sur la VM
   (`docs/gcp-setup.md` §6) → y ajouter `PUBLIC_BASE_URL`. VPS (futur) : le Caddy
   de bordure relaie déjà tout vers le frontend, rien à changer.
 - Aucun conteneur supplémentaire. Tables créées par `init_db` comme les autres.
 
-## Risques — à lever au spike (phase 0)
+## Résultats du spike (phase 0, 2026-09-23)
+
+SDK `mcp` **2.2.0** (ligne 2.x), Litestar 2.22. Script jetable, hors dépôt.
+
+- **Montage** : un **dispatcher ASGI externe** (`app.main:app`) envoie `/mcp`,
+  `/.well-known/oauth-*`, `/authorize`, `/token`, `/register`, `/revoke` à
+  l'app Starlette du SDK et tout le reste à Litestar. `auth_guard` ne voit
+  jamais les chemins MCP. Le session manager du SDK est démarré depuis le
+  `lifespan` Litestar. Validé : 401 + `resource_metadata`, métadonnées, DCR
+  public (`none`) avec le callback claude.ai, `initialize`, appel d'outil.
+- **Rebouclage** : validé (outil → `GET /api/skaters/` in-process, 200).
+- Les endpoints OAuth du SDK sont **à la racine** (issuer = URL de base) : on
+  garde ces chemins plutôt que `/oauth/*`, qui casserait la découverte RFC 8414.
+- L'issuer doit être en HTTPS (sauf `localhost`) et passé en **chaîne** (un
+  `AnyHttpUrl` ajoute un `/` final).
+- Les métadonnées du SDK n'annoncent pas `none` dans
+  `token_endpoint_auth_methods_supported` alors que les clients publics sont
+  acceptés : on sert nos propres métadonnées AS, complétées.
+- Redirections comparées **exactement** : sous-classe du modèle client pour
+  ignorer le port des adresses loopback.
+- **Pas de CIMD** côté serveur → DCR seul.
+- `session_manager.run()` n'est appelable qu'**une fois par instance** : l'app
+  MCP est construite par une fabrique (une instance par test).
+
+## Risques identifiés avant le spike
 
 1. **Montage du SDK dans Litestar** : monter les apps Starlette du SDK (MCP +
    routes auth) via un handler `asgi(is_mount=True)` ; vérifier que
@@ -292,7 +313,7 @@ renvoie l'utilisateur connecté.
 
 0. **Spike** — montage SDK + poignée de main OAuth minimale + `whoami`. Tranche
    les risques 1 à 3 et la version du SDK.
-1. **Serveur d'autorisation** — modèles, provider, DCR (+ CIMD), page
+1. **Serveur d'autorisation** — modèles, provider, DCR, page
    `/autorisation`, `POST /api/oauth/consent`, validation en base.
 2. **Outils** — décision et correctif sur les routes sans scoping, audit
    `skater`, outils v1, ressource glossaire, journalisation.
