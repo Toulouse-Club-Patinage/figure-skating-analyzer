@@ -437,6 +437,29 @@ la production et le VPS ne sert que Ligue.
 
 ---
 
+## Serveur MCP (Claude)
+
+SkateLab expose un serveur MCP permettant d'interroger les résultats de
+compétition depuis Claude, avec les droits de l'utilisateur connecté. Pour
+l'activer :
+
+- Définissez `PUBLIC_BASE_URL=https://<domaine>` dans l'environnement du
+  backend — l'URL publique exacte de votre instance, **sans slash final**,
+  en **HTTPS**. C'est l'issuer OAuth : il doit correspondre exactement au
+  domaine réellement utilisé. Sur la VM GCP, cette variable se règle dans le
+  `docker-compose.yml` écrit à la main sur la VM (voir `docs/gcp-setup.md`
+  §6), pas dans ce dépôt.
+- L'image frontend (nginx) relaie déjà `/mcp`, `/authorize`, `/token`,
+  `/register`, `/revoke` et `/.well-known/oauth-*` vers le backend — aucune
+  configuration supplémentaire n'est nécessaire côté proxy.
+- Claude se connecte depuis la plage `160.79.104.0/21` : si votre pare-feu
+  restreint l'accès entrant, autorisez cette plage pour le port HTTPS.
+
+Voir [`docs/connecter-claude.md`](./connecter-claude.md) pour le guide de
+connexion destiné aux utilisateurs du club.
+
+---
+
 ## Reference des variables d'environnement
 
 ### Variables backend

@@ -51,15 +51,16 @@ cd backend && uv lock
 - **Database**: `backend/app/database.py` — async SQLAlchemy engine, auto-migration via `ALTER TABLE` for new columns, bootstrap seeds admin user + app settings from env vars on first run
 - **Config**: `backend/app/config.py` — all env vars (`DATABASE_URL`, `SECRET_KEY`, `GOOGLE_CLIENT_ID`, `ADMIN_EMAIL`, etc.)
 - **Auth**: JWT access tokens + HTTP-only refresh cookies. `auth/guards.py` has `auth_guard` (before_request hook), `require_admin`, `reject_skater_role`, `require_skater_access`
-- **Roles**: `admin` (full access), `reader` (browse, no manage), `skater` (sees only linked skaters via `UserSkater` join table)
+- **Roles**: `admin` (full access), `reader` (browse, no manage), `skater` (sees only linked skaters via `UserSkater` join table), `coach` (training/program builder routes, via `require_coach_or_admin`)
 - **Job queue**: `services/job_queue.py` — in-process async queue for import/reimport/enrich jobs. Routes submit jobs, lifespan worker processes them
 - **Import pipeline**: URL → `scraper_factory.py` selects scraper → scraper fetches HTML + PDFs → `parser.py` extracts scores → stored in DB. Scrapers in `services/scrapers/` extend `BaseScraper` (ABC)
 - **Demande de compte**: formulaire public (`/request-account`) → `services/account_request.py` vérifie la licence contre le cache French Ranking (`services/french_ranking/`, TTL 1h, portage depuis `ligue-app-competitions`) → compte `skater` créé automatiquement + mot de passe temporaire (7 j) par email. Réponse HTTP toujours neutre (pas d'oracle d'énumération). Cas ambigus routés vers validation admin.
 - **PDF reports**: `services/report_data.py` + `templates/reports/` (Jinja2 + WeasyPrint)
+- **MCP** : `app/mcp/` — serveur MCP OAuth (SDK `mcp` 2.x). `app.main:app` est un dispatcher ASGI (`McpDispatcher`) : `/mcp`, `/authorize`, `/token`, `/register`, `/revoke`, `/.well-known/oauth-*` → app Starlette du SDK ; le reste → `litestar_app`. Les outils appellent les routes GET en in-process (`loopback.api_get`, liste blanche) avec un JWT de 60 s : les droits sont ceux des routes. `PUBLIC_BASE_URL` = issuer.
 
-**Models**: Competition, Skater, Score, CategoryResult, User, UserSkater, AllowedDomain, AppSettings, AccountRequest, FrenchRankingEntry
+**Models**: Competition, Skater, Score, CategoryResult, User, UserSkater, AllowedDomain, AppSettings, AccountRequest, FrenchRankingEntry, OAuthClient, OAuthAuthRequest, OAuthToken
 
-**Routes** (all under `/api`): auth, competitions, skaters, scores, dashboard, stats, reports, users, admin, domains, club_config, jobs, me
+**Routes** (all under `/api`): auth, competitions, skaters, scores, dashboard, stats, reports, users, admin, domains, club_config, jobs, me, oauth
 
 ### Frontend (React + TypeScript + Vite + Tailwind CSS)
 
@@ -82,3 +83,4 @@ cd backend && uv lock
 ## Testing
 
 Tests use pytest-asyncio with in-memory SQLite. Key fixtures in `conftest.py`: `db_session`, `client` (ASGI test client with monkeypatched DB), `admin_user`/`reader_user`/`skater_user_with_skater`, and corresponding `*_token` fixtures. All tests are async by default (`asyncio_mode = "auto"`).
+`mcp_http` : client vers le dispatcher complet ; `oauth_provider` ; helpers dans `tests/mcp_helpers.py`.
