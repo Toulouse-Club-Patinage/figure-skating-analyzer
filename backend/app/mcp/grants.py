@@ -61,6 +61,8 @@ async def list_grants(session: AsyncSession, user_id: str | None) -> list[dict]:
             OAuthToken.revoked_at.is_(None),
             OAuthToken.consumed_at.is_(None),
             OAuthToken.expires_at > now(),
+            User.is_active.is_(True),
+            OAuthToken.user_token_version == User.token_version,
         )
         .order_by(OAuthToken.granted_at.desc())
     )
@@ -105,13 +107,16 @@ async def purge_stale(session: AsyncSession) -> None:
     cutoff = now() - STALE_CLIENT_DAYS * 24 * 3600
     await session.execute(delete(OAuthAuthRequest).where(OAuthAuthRequest.expires_at < now() - CODE_TTL))
     await session.execute(delete(OAuthToken).where(OAuthToken.expires_at < cutoff))
-    live_clients = select(OAuthToken.client_id).where(OAuthToken.expires_at > now()).distinct()
+    # « Aucun jeton » et pas seulement « aucun jeton vivant » : un jeton expiré
+    # depuis moins de STALE_CLIENT_DAYS référence encore le client (FK), et sur
+    # une base qui les impose (Postgres), le supprimer romprait la contrainte.
+    referenced_clients = select(OAuthToken.client_id).distinct()
     pending_clients = select(OAuthAuthRequest.client_id).distinct()
     created_before = datetime.now(timezone.utc) - timedelta(days=STALE_CLIENT_DAYS)
     await session.execute(
         delete(OAuthClient).where(
             OAuthClient.created_at < created_before,
-            OAuthClient.client_id.not_in(live_clients),
+            OAuthClient.client_id.not_in(referenced_clients),
             OAuthClient.client_id.not_in(pending_clients),
         )
     )

@@ -4,7 +4,7 @@ from sqlalchemy import select
 from mcp.server.auth.provider import TokenError
 
 from app.mcp import grants
-from app.mcp.oauth_provider import hash_secret
+from app.mcp.oauth_provider import hash_secret, now
 from app.models.oauth import OAuthClient, OAuthToken
 from tests.mcp_helpers import BASE, issue_test_tokens
 
@@ -114,6 +114,26 @@ async def test_list_and_revoke_grants(oauth_provider, db_session, admin_user, re
     assert await grants.list_grants(db_session, reader.id) == []
 
 
+async def test_list_grants_hides_deactivated_or_stale_token_version(oauth_provider, db_session, admin_user, reader_user):
+    """T5 : list_grants ne doit pas montrer un grant qui ne fonctionne plus
+    (utilisateur désactivé, ou jeton émis avant un changement de mot de passe /
+    déconnexion globale qui a fait avancer token_version)."""
+    admin, _ = admin_user
+    reader, _ = reader_user
+    await issue_test_tokens(oauth_provider, admin)
+    await issue_test_tokens(oauth_provider, reader)
+    assert len(await grants.list_grants(db_session, None)) == 2
+
+    admin.is_active = False
+    await db_session.commit()
+    remaining = await grants.list_grants(db_session, None)
+    assert len(remaining) == 1 and remaining[0]["user_display_name"] == "Test Reader"
+
+    reader.token_version += 1
+    await db_session.commit()
+    assert await grants.list_grants(db_session, None) == []
+
+
 async def test_purge_removes_unused_clients(oauth_provider, db_session, admin_user):
     from datetime import datetime, timedelta, timezone
 
@@ -127,3 +147,28 @@ async def test_purge_removes_unused_clients(oauth_provider, db_session, admin_us
     await grants.purge_stale(db_session)
     assert await db_session.get(OAuthClient, "stale") is None
     assert await oauth_provider.load_access_token(tok.access_token) is not None
+
+
+async def test_purge_keeps_client_with_recently_expired_token(oauth_provider, db_session, admin_user):
+    """M-2 : un client ne doit pas être purgé tant qu'un jeton, même expiré,
+    le référence encore (sinon FK cassée sur une base qui les impose)."""
+    from datetime import datetime, timedelta, timezone
+
+    user, _ = admin_user
+    tok = await issue_test_tokens(oauth_provider, user)
+    access_row = (await db_session.execute(select(OAuthToken).where(
+        OAuthToken.token_hash == hash_secret(tok.access_token)))).scalar_one()
+    client_id = access_row.client_id
+    # Les deux jetons du client (access + refresh) expirés depuis 1h, pas 30j :
+    # sous l'ancien prédicat (« aucun jeton vivant »), aucun n'est "vivant" et le
+    # client serait purgé alors que les deux lignes existent encore (FK).
+    await db_session.execute(
+        OAuthToken.__table__.update().where(OAuthToken.client_id == client_id)
+        .values(expires_at=now() - 3600)
+    )
+    client = await db_session.get(OAuthClient, client_id)
+    client.created_at = datetime.now(timezone.utc) - timedelta(days=31)
+    await db_session.commit()
+
+    await grants.purge_stale(db_session)
+    assert await db_session.get(OAuthClient, client_id) is not None
