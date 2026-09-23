@@ -55,6 +55,91 @@
 
 ---
 
+### Task 0: Require admin on competition write routes
+
+Found during the study (route audit, 2026-09-23): in `backend/app/routes/competitions.py`, five write handlers take no `request` and call no guard, so ANY authenticated account (skater, reader, coach) can create, delete, import or enrich competitions. The UI only shows these actions to admins (`CompetitionsPage.tsx` `isAdmin`), and CLAUDE.md defines `reader` as "browse, no manage". The rest of the audit is clean: `auth`/`club_config` public routes are intentional, `self_eval` delegates to `_check_skater_own_access`, `reports` `program/pdf|email` only render submitted data, and the score/team-score read routes are handled by Task 1.
+
+**Files:**
+- Modify: `backend/app/routes/competitions.py`
+- Test: `backend/tests/test_competition_write_guards.py`
+- Modify (only if they break): existing tests calling these endpoints without an admin token
+
+**Interfaces:**
+- Produces: `POST /api/competitions/`, `DELETE /api/competitions/{id}`, `POST /api/competitions/{id}/import`, `POST /api/competitions/{id}/enrich`, `POST /api/competitions/bulk-import` return **403** for non-admin roles; admin behaviour unchanged.
+
+- [ ] **Step 1: Write the failing tests**
+
+```python
+# backend/tests/test_competition_write_guards.py
+import pytest
+import pytest_asyncio
+
+from app.models.competition import Competition
+
+
+@pytest_asyncio.fixture
+async def comp(db_session):
+    c = Competition(name="Comp", url="http://example.com/guards")
+    db_session.add(c)
+    await db_session.commit()
+    await db_session.refresh(c)
+    return c
+
+
+def _calls(comp_id):
+    return [
+        ("post", "/api/competitions/", {"url": "http://example.com/new"}),
+        ("delete", f"/api/competitions/{comp_id}", None),
+        ("post", f"/api/competitions/{comp_id}/import", None),
+        ("post", f"/api/competitions/{comp_id}/enrich", None),
+        ("post", "/api/competitions/bulk-import", {"urls": ["http://example.com/bulk"]}),
+    ]
+
+
+@pytest.mark.parametrize("token_fixture", ["reader_token", "coach_token", "skater_token"])
+async def test_non_admin_cannot_write_competitions(client, comp, token_fixture, request):
+    token = request.getfixturevalue(token_fixture)
+    for method, path, body in _calls(comp.id):
+        kwargs = {"headers": {"Authorization": f"Bearer {token}"}}
+        if body is not None:
+            kwargs["json"] = body
+        r = await getattr(client, method)(path, **kwargs)
+        assert r.status_code == 403, f"{token_fixture} {method.upper()} {path} -> {r.status_code}"
+
+
+async def test_admin_can_create_and_delete(client, admin_token):
+    headers = {"Authorization": f"Bearer {admin_token}"}
+    r = await client.post("/api/competitions/", json={"url": "http://example.com/admin"}, headers=headers)
+    assert r.status_code == 201
+    r = await client.delete(f"/api/competitions/{r.json()['id']}", headers=headers)
+    assert r.status_code == 204
+```
+
+Before writing the body of the `bulk-import` call, read `bulk_import` in `competitions.py` and use the payload key it actually expects (the test only needs the guard to fire before any payload validation — with the guard as the first line, any body gets 403).
+
+- [ ] **Step 2: Run to verify they fail**
+
+Run: `cd backend && /opt/homebrew/bin/uv run pytest tests/test_competition_write_guards.py -v`
+Expected: the three parametrized cases FAIL (201/204/200 instead of 403); the admin test PASSES.
+
+- [ ] **Step 3: Implement**
+
+In `backend/app/routes/competitions.py`, for each of `create_competition`, `delete_competition`, `import_competition`, `enrich_competition`, `bulk_import`: add a `request: Request` parameter and make `require_admin(request)` the **first** statement of the body (before any lookup or payload parsing, so non-admins never learn whether an id exists). `require_admin` and `Request` are already imported in this module.
+
+- [ ] **Step 4: Run tests**
+
+Run: `cd backend && /opt/homebrew/bin/uv run pytest tests/test_competition_write_guards.py -v && /opt/homebrew/bin/uv run pytest -q`
+Expected: all PASS. If an existing test now fails with 403 because it called one of these endpoints with a non-admin or missing-role token, switch that test to the `admin_token` fixture — do not loosen the guard.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add backend/app/routes/competitions.py backend/tests/test_competition_write_guards.py backend/tests
+git commit -m "fix(competitions): réserve la création, suppression et l'import de compétitions aux admins"
+```
+
+---
+
 ### Task 1: Scope unscoped score routes for the `skater` role
 
 Today `GET /api/scores/`, `GET /api/scores/{id}/elements`, `GET /api/scores/category-results`, `GET /api/competitions/{id}/team-scores` and `GET /api/competitions/{id}/team-medians` have no role check. Fix before exposing them.
