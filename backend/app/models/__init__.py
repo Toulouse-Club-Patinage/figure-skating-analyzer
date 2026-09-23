@@ -17,6 +17,7 @@ from app.models.training_mood import TrainingMood
 from app.models.self_evaluation import SelfEvaluation
 from app.models.french_ranking_entry import FrenchRankingEntry
 from app.models.account_request import AccountRequest
+from app.models.oauth import OAuthAuthRequest, OAuthClient, OAuthToken
 
 __all__ = [
     "Competition",
@@ -38,4 +39,7 @@ __all__ = [
     "SelfEvaluation",
     "FrenchRankingEntry",
     "AccountRequest",
+    "OAuthAuthRequest",
+    "OAuthClient",
+    "OAuthToken",
 ]
