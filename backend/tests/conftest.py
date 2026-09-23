@@ -194,3 +194,11 @@ async def skater_token(skater_user_with_skater) -> str:
 
     user, _, _ = skater_user_with_skater
     return create_access_token(user_id=user.id, role=user.role)
+
+
+@pytest_asyncio.fixture
+async def oauth_provider(client):
+    """Provider OAuth branché sur la base de test (via le monkeypatch de `client`)."""
+    from app.mcp.oauth_provider import SkatelabOAuthProvider
+
+    return SkatelabOAuthProvider("http://localhost")
