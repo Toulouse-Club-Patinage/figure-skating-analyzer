@@ -194,3 +194,45 @@ async def skater_token(skater_user_with_skater) -> str:
 
     user, _, _ = skater_user_with_skater
     return create_access_token(user_id=user.id, role=user.role)
+
+
+@pytest_asyncio.fixture
+async def oauth_provider(client):
+    """Provider OAuth branché sur la base de test (via le monkeypatch de `client`)."""
+    from app.mcp.oauth_provider import SkatelabOAuthProvider
+
+    return SkatelabOAuthProvider("http://localhost")
+
+
+@pytest_asyncio.fixture
+async def mcp_http(client):
+    """Client HTTP vers le dispatcher complet (Litestar + MCP), base http://localhost.
+
+    Le session manager tourne dans une tâche asyncio dédiée : pytest-asyncio
+    exécute la mise en place et le nettoyage d'un fixture générateur via deux
+    appels distincts (donc potentiellement deux tâches asyncio différentes), ce
+    qui casse le cancel scope anyio ouvert par `session_manager.run()` s'il est
+    entré et quitté directement dans le corps du fixture.
+    """
+    from app.main import litestar_app
+    from app.mcp.dispatcher import McpDispatcher
+    from app.mcp.server import create_mcp_app
+
+    server, mcp_app = create_mcp_app("http://localhost")
+    ready = asyncio.Event()
+    stop = asyncio.Event()
+
+    async def _run_session_manager() -> None:
+        async with server.session_manager.run():
+            ready.set()
+            await stop.wait()
+
+    task = asyncio.create_task(_run_session_manager())
+    await ready.wait()
+    try:
+        transport = ASGITransport(app=McpDispatcher(litestar_app, mcp_app))
+        async with AsyncClient(transport=transport, base_url="http://localhost") as c:
+            yield c
+    finally:
+        stop.set()
+        await task

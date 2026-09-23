@@ -84,7 +84,8 @@ async def get_competition(competition_id: int, request: Request, session: AsyncS
 
 
 @post("/")
-async def create_competition(data: dict, session: AsyncSession) -> dict:
+async def create_competition(data: dict, request: Request, session: AsyncSession) -> dict:
+    require_admin(request)
     url = data["url"].strip()
     comp = Competition(
         name=data.get("name", url).strip(),
@@ -115,7 +116,8 @@ async def update_competition(competition_id: int, data: dict, request: Request, 
 
 
 @delete("/{competition_id:int}", status_code=204)
-async def delete_competition(competition_id: int, session: AsyncSession) -> None:
+async def delete_competition(competition_id: int, request: Request, session: AsyncSession) -> None:
+    require_admin(request)
     comp = await session.get(Competition, competition_id)
     if not comp:
         raise NotFoundException(f"Competition {competition_id} not found")
@@ -124,8 +126,9 @@ async def delete_competition(competition_id: int, session: AsyncSession) -> None
 
 
 @post("/{competition_id:int}/import")
-async def import_competition(competition_id: int, session: AsyncSession, force: bool = False) -> dict:
+async def import_competition(competition_id: int, request: Request, session: AsyncSession, force: bool = False) -> dict:
     """Submit an import job to the queue. Returns immediately with job info."""
+    require_admin(request)
     comp = await session.get(Competition, competition_id)
     if not comp:
         raise NotFoundException(f"Competition {competition_id} not found")
@@ -146,8 +149,9 @@ async def get_import_status(competition_id: int, session: AsyncSession) -> dict:
 
 
 @post("/{competition_id:int}/enrich")
-async def enrich_competition(competition_id: int, session: AsyncSession) -> dict:
+async def enrich_competition(competition_id: int, request: Request, session: AsyncSession) -> dict:
     """Submit an enrich job to the queue. Returns immediately with job info."""
+    require_admin(request)
     comp = await session.get(Competition, competition_id)
     if not comp:
         raise NotFoundException(f"Competition {competition_id} not found")
@@ -219,8 +223,9 @@ async def backfill_metadata(request: Request, session: AsyncSession) -> dict:
 
 
 @post("/bulk-import")
-async def bulk_import(data: dict, session: AsyncSession) -> dict:
+async def bulk_import(data: dict, request: Request, session: AsyncSession) -> dict:
     """Bulk import: create competitions and submit import jobs to the queue."""
+    require_admin(request)
     from app.services.job_queue import job_queue
 
     urls: list[str] = data.get("urls", [])

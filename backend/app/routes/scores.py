@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from litestar import Router, get
+from litestar import Request, Router, get
 from litestar.di import Provide
 from litestar.exceptions import NotFoundException
 from litestar.params import Parameter
@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.auth.guards import linked_skater_ids, require_skater_access
 from app.config import PDF_DIR
 from app.database import get_session
 from app.models.score import Score
@@ -18,6 +19,7 @@ from app.models.category_result import CategoryResult
 
 @get("/")
 async def list_scores(
+    request: Request,
     session: AsyncSession,
     competition_id: Optional[int] = None,
     skater_id: Optional[int] = None,
@@ -34,6 +36,10 @@ async def list_scores(
         stmt = stmt.where(Score.skater_id == skater_id)
     if segment is not None:
         stmt = stmt.where(Score.segment == segment.upper())
+
+    allowed = await linked_skater_ids(request, session)
+    if allowed is not None:
+        stmt = stmt.where(Score.skater_id.in_(allowed))
 
     result = await session.execute(stmt)
     scores = result.scalars().all()
@@ -82,15 +88,17 @@ def _pdf_serving_url(pdf_path: str | None) -> str | None:
 
 
 @get("/{score_id:int}/elements")
-async def get_score_elements(score_id: int, session: AsyncSession) -> list[dict]:
+async def get_score_elements(score_id: int, request: Request, session: AsyncSession) -> list[dict]:
     score = await session.get(Score, score_id)
     if not score:
         raise NotFoundException(f"Score {score_id} not found")
+    await require_skater_access(request, score.skater_id, session)
     return score.elements or []
 
 
 @get("/category-results")
 async def list_category_results(
+    request: Request,
     session: AsyncSession,
     competition_id: Optional[int] = None,
     skater_id: Optional[int] = None,
@@ -107,6 +115,10 @@ async def list_category_results(
         stmt = stmt.where(CategoryResult.competition_id == competition_id)
     if skater_id is not None:
         stmt = stmt.where(CategoryResult.skater_id == skater_id)
+
+    allowed = await linked_skater_ids(request, session)
+    if allowed is not None:
+        stmt = stmt.where(CategoryResult.skater_id.in_(allowed))
 
     result = await session.execute(stmt)
     return [_category_result_to_dict(cr) for cr in result.scalars().all()]

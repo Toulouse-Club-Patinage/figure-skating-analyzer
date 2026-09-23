@@ -9,6 +9,7 @@ from litestar.config.cors import CORSConfig
 from litestar.static_files import StaticFilesConfig
 from sqlalchemy import select
 
+from app import config
 from app.config import ALLOWED_ORIGINS, LOGOS_DIR, PDF_DIR
 from app.database import init_db, async_session_factory
 from app.auth.guards import auth_guard
@@ -31,6 +32,10 @@ from app.routes.training import router as training_router
 from app.routes.notifications import router as notifications_router
 from app.routes.team_scores import router as team_scores_router
 from app.routes.program_builder import router as program_builder_router
+from app.routes.oauth import router as oauth_router
+from app.mcp.dispatcher import McpDispatcher
+from app.mcp.server import create_mcp_app
+from app.mcp.grants import purge_stale
 
 
 logger = logging.getLogger(__name__)
@@ -67,6 +72,11 @@ async def _polling_loop() -> None:
                 await session.commit()
         except Exception:
             logger.exception("Error in polling loop")
+        try:
+            async with async_session_factory() as session:
+                await purge_stale(session)
+        except Exception:
+            logger.exception("Error purging OAuth data")
 
 
 @asynccontextmanager
@@ -100,6 +110,36 @@ async def lifespan(_: Litestar) -> AsyncGenerator[None, None]:
         await job_queue.stop_worker()
 
 
+def _create_mcp_app_safe():
+    """Enveloppe `create_mcp_app` : une `PUBLIC_BASE_URL` invalide (HTTP hors
+    localhost, query string...) ne doit pas empêcher tout `app.main` de démarrer.
+    """
+    try:
+        return create_mcp_app()
+    except ValueError:
+        logger.error(
+            "Serveur MCP désactivé : PUBLIC_BASE_URL=%r est invalide (doit être une "
+            "URL HTTPS, sans slash final, hors localhost). Le reste de l'application "
+            "démarre normalement ; corrigez PUBLIC_BASE_URL puis redémarrez pour "
+            "réactiver /mcp et les endpoints OAuth.",
+            config.PUBLIC_BASE_URL,
+            exc_info=True,
+        )
+        return None, None
+
+
+mcp_server, mcp_asgi = _create_mcp_app_safe()
+
+
+@asynccontextmanager
+async def mcp_lifespan(_: Litestar) -> AsyncGenerator[None, None]:
+    if mcp_server is None:
+        yield
+        return
+    async with mcp_server.session_manager.run():
+        yield
+
+
 cors_config = CORSConfig(
     allow_origins=ALLOWED_ORIGINS,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
@@ -113,7 +153,7 @@ async def health_check() -> dict:
     return {"status": "ok"}
 
 
-app = Litestar(
+litestar_app = Litestar(
     route_handlers=[
         health_check,
         auth_router,
@@ -133,9 +173,10 @@ app = Litestar(
         notifications_router,
         team_scores_router,
         program_builder_router,
+        oauth_router,
     ],
     cors_config=cors_config,
-    lifespan=[lifespan],
+    lifespan=[lifespan, mcp_lifespan],
     before_request=auth_guard,
     static_files_config=[
         StaticFilesConfig(
@@ -148,3 +189,6 @@ app = Litestar(
         ),
     ],
 )
+
+# Point d'entrée uvicorn (app.main:app) : dispatcher MCP/OAuth devant Litestar.
+app = McpDispatcher(litestar_app, mcp_asgi)

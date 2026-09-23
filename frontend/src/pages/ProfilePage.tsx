@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api, setAccessToken } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import ConnectedAppsCard from "../components/ConnectedAppsCard";
 
 export default function ProfilePage() {
   const { user, updateUser } = useAuth();
@@ -73,6 +74,7 @@ export default function ProfilePage() {
           Vous utilisez Google pour vous connecter. La modification du mot de passe n'est pas disponible.
         </p>
         {preferencesCard}
+        <ConnectedAppsCard />
       </div>
     );
   }
@@ -180,6 +182,7 @@ export default function ProfilePage() {
         </form>
       </div>
       {preferencesCard}
+      <ConnectedAppsCard />
     </div>
   );
 }

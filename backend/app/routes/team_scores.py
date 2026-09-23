@@ -6,7 +6,7 @@ from litestar.exceptions import NotFoundException, ClientException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.guards import require_admin
+from app.auth.guards import require_admin, reject_skater_role
 from app.database import get_session
 from app.models.app_settings import AppSettings
 from app.models.competition import Competition
@@ -16,8 +16,9 @@ from app.services.team_scoring import get_team_scores, auto_init_titular, DEFAUL
 
 @get("/{competition_id:int}/team-scores")
 async def get_competition_team_scores(
-    competition_id: int, session: AsyncSession
+    competition_id: int, request: Request, session: AsyncSession
 ) -> dict:
+    reject_skater_role(request)
     result = await get_team_scores(session, competition_id)
     if result is None:
         raise NotFoundException("Compétition introuvable ou pas de type France Clubs")
@@ -26,8 +27,9 @@ async def get_competition_team_scores(
 
 @get("/{competition_id:int}/team-medians")
 async def get_competition_medians(
-    competition_id: int, session: AsyncSession
+    competition_id: int, request: Request, session: AsyncSession
 ) -> dict:
+    reject_skater_role(request)
     comp = await session.get(Competition, competition_id)
     if not comp:
         raise NotFoundException("Compétition introuvable")
