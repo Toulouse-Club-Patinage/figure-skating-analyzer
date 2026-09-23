@@ -6,7 +6,8 @@ import { api, type AccountRequestLicence } from "../api/client";
 
 export default function RequestAccountPage() {
   const [email, setEmail] = useState("");
-  const [displayName, setDisplayName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [licences, setLicences] = useState<AccountRequestLicence[]>([
     { licence_number: "", birth_date: "" },
   ]);
@@ -22,7 +23,8 @@ export default function RequestAccountPage() {
 
   const canSubmit =
     email.trim() !== "" &&
-    displayName.trim() !== "" &&
+    firstName.trim() !== "" &&
+    lastName.trim() !== "" &&
     licences.every((l) => l.licence_number.trim() !== "" && l.birth_date !== "");
 
   if (submitted) {
@@ -48,7 +50,11 @@ export default function RequestAccountPage() {
         className="bg-surface-container rounded-2xl p-8 max-w-md w-full"
         onSubmit={(e) => {
           e.preventDefault();
-          mutation.mutate({ email, display_name: displayName, licences });
+          mutation.mutate({
+            email,
+            display_name: `${firstName.trim()} ${lastName.trim()}`,
+            licences,
+          });
         }}
       >
         <h1 className="font-headline text-xl text-on-surface mb-2">Demander un compte</h1>
@@ -66,14 +72,30 @@ export default function RequestAccountPage() {
           required
         />
 
-        <label className="block text-sm text-on-surface-variant mb-1">Votre nom</label>
-        <input
-          type="text"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          className="w-full bg-surface rounded-lg px-3 py-2 mb-4 text-on-surface"
-          required
-        />
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div>
+            <label className="block text-sm text-on-surface-variant mb-1">Votre prénom</label>
+            <input
+              type="text"
+              autoComplete="given-name"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              className="w-full bg-surface rounded-lg px-3 py-2 text-on-surface"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-on-surface-variant mb-1">Votre nom</label>
+            <input
+              type="text"
+              autoComplete="family-name"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              className="w-full bg-surface rounded-lg px-3 py-2 text-on-surface"
+              required
+            />
+          </div>
+        </div>
 
         {licences.map((licence, index) => (
           <div key={index} className="bg-surface rounded-lg p-3 mb-3">
