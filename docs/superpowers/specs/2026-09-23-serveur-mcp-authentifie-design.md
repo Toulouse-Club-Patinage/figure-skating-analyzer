@@ -191,7 +191,7 @@ paramètre `limit`, tri) et la renvoyer en JSON. Tous les outils sont annotés
 
 | Outil | Route(s) rebouclée(s) | Rôles |
 |---|---|---|
-| `whoami` | aucune — lu directement depuis l'utilisateur du jeton (nom, rôle, club) | tous |
+| `whoami` | aucune — lu directement depuis l'utilisateur du jeton (nom, email, rôle) | tous |
 | `list_my_skaters` | `GET /api/me/skaters` | tous (utile surtout à `skater`) |
 | `search_skaters(query, club?)` | `GET /api/skaters/` | hors `skater` |
 | `get_skater(skater_id)` | `GET /api/skaters/{id}` | tous (scopé) |
@@ -219,7 +219,9 @@ Ressource MCP `skatelab://glossaire` : vocabulaire de notation (TES, PCS, GOE,
 valeur de base, catégories et niveaux FFSG, segments) pour que Claude interprète
 correctement les chiffres.
 
-Chaque appel d'outil est journalisé (utilisateur, outil, arguments, durée).
+Chaque appel rebouclé est journalisé (utilisateur, rôle, route et paramètres,
+code retour, durée) ; `whoami` n'appelle aucune route et n'est donc pas
+journalisé.
 
 ### ⚠️ Constat préalable : routes sans contrôle de rôle
 
@@ -302,7 +304,8 @@ renvoie l'utilisateur connecté.
 - **Intégration** : client MCP du SDK contre l'app ASGI (découverte → DCR →
   authorize → consentement → token → `list_tools` → appel d'outil).
 - **Droits par outil** : `skater` rattaché / non rattaché, `reader`, `coach`,
-  `admin` ; outils masqués pour `skater`.
+  `admin` ; les outils restent listés pour tous les rôles, `skater` reçoit
+  « Accès refusé » sur les outils hors de son périmètre (voir « Outils »).
 - **Frontend** : page `/autorisation` (connecté / non connecté / refus / demande
   expirée).
 - **Manuel** : Claude Code (`claude mcp add --transport http`) et connecteur
