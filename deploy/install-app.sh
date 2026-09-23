@@ -4,7 +4,7 @@
 # Idempotent : premier appel = clone, appels suivants = git pull.
 # À exécuter EN TANT QUE `deploy` sur le VPS :
 #   ./install-app.sh ligue git@github.com:AbelThorne/ligue-app-competitions.git
-#   ./install-app.sh skatelab git@github.com:AbelThorne/figure-skating-analyzer.git deploy/compose.vps.yml
+#   ./install-app.sh skatelab git@github.com:Toulouse-Club-Patinage/figure-skating-analyzer.git deploy/compose.vps.yml
 #
 # Le 3e argument, optionnel, est un fichier compose de surcouche relatif à
 # la racine du dépôt. Il sert aux dépôts dont le compose racine cible un

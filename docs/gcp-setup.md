@@ -239,7 +239,7 @@ gcloud iam workload-identity-pools providers create-oidc github-figure-skating \
   --display-name="GitHub - Figure Skating Analyzer" \
   --issuer-uri="https://token.actions.githubusercontent.com" \
   --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.repository_owner=assertion.repository_owner" \
-  --attribute-condition="assertion.repository == 'AbelThorne/figure-skating-analyzer'"
+  --attribute-condition="assertion.repository == 'Toulouse-Club-Patinage/figure-skating-analyzer'"
 ```
 
 Service account:
@@ -256,7 +256,7 @@ gcloud iam service-accounts add-iam-policy-binding \
   figure-skating-ci@skating-analyzer.iam.gserviceaccount.com \
   --project=skating-analyzer \
   --role="roles/iam.workloadIdentityUser" \
-  --member="principalSet://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github-actions-pool/attribute.repository/AbelThorne/figure-skating-analyzer"
+  --member="principalSet://iam.googleapis.com/projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github-actions-pool/attribute.repository/Toulouse-Club-Patinage/figure-skating-analyzer"
 ```
 
 Replace `PROJECT_NUMBER` with the output of:

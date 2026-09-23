@@ -183,11 +183,11 @@ fi
 #
 # Alias créés :  github-ligue  -> dépôt Ligue
 #                github-skatelab -> dépôt SkateLab
-# Les URL de clone deviennent  git@github-ligue:AbelThorne/<dépôt>.git
+# Les URL de clone deviennent  git@<alias>:<propriétaire>/<dépôt>.git
 
 declare -A REPO_KEYS=(
     [ligue]="AbelThorne/ligue-app-competitions"
-    [skatelab]="AbelThorne/figure-skating-analyzer"
+    [skatelab]="Toulouse-Club-Patinage/figure-skating-analyzer"
 )
 
 SSH_CONFIG="$DEPLOY_SSH/config"

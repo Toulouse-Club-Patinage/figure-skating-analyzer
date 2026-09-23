@@ -88,7 +88,7 @@ configuration à part le `.env` (que l'on recrée, voir §4).
       gcloud — ce poste jongle avec plusieurs profils.
 - [ ] **Accès VPS** : `ssh deploy@192.162.69.191` répond.
 - [ ] **Deploy key SkateLab** déjà en place sur le VPS (`ssh -T git@github-skatelab`
-      doit répondre « Hi AbelThorne/figure-skating-analyzer! »). Posée par
+      doit répondre « Hi Toulouse-Club-Patinage/figure-skating-analyzer! »). Posée par
       `deploy/bootstrap-vps.sh`.
 - [ ] **Espace disque** : vérifier `df -h /` sur le VPS (145 Go libres au
       2026-08-27 — largement suffisant, la base fait quelques Mo).
@@ -160,7 +160,7 @@ scp /tmp/skatelab-data.tar.gz deploy@192.162.69.191:/tmp/
 
 ```bash
 ssh deploy@192.162.69.191 '/opt/stacks/install-app.sh \
-    skatelab git@github-skatelab:AbelThorne/figure-skating-analyzer.git \
+    skatelab git@github-skatelab:Toulouse-Club-Patinage/figure-skating-analyzer.git \
     deploy/compose.vps.yml'
 ```
 

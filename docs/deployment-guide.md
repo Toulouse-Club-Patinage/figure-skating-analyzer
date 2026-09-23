@@ -382,7 +382,7 @@ ssh deploy@<ip> '/opt/stacks/install-app.sh \
 #    ci-dessous) : la surcouche devient nécessaire, car le compose racine de
 #    ce dépôt cible le développement local, pas le VPS.
 ssh deploy@<ip> '/opt/stacks/install-app.sh \
-    skatelab git@github-skatelab:AbelThorne/figure-skating-analyzer.git deploy/compose.vps.yml'
+    skatelab git@github-skatelab:Toulouse-Club-Patinage/figure-skating-analyzer.git deploy/compose.vps.yml'
 ```
 
 Pour Ligue, une fois installé, toute commande compose se fait normalement
