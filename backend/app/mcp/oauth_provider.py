@@ -164,3 +164,88 @@ class SkatelabOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, 
             select(OAuthAuthRequest).where(OAuthAuthRequest.code_hash == hash_secret(code))
         )
         return result.scalar_one_or_none()
+
+    # --- Validation & rotation --------------------------------------------
+
+    async def load_access_token(self, token: str) -> AccessToken | None:
+        async with db_mod.async_session_factory() as session:
+            row = await self._token_row(session, token, "access")
+            if row is None or row.revoked_at is not None or row.expires_at < now():
+                return None
+            user = await session.get(User, row.user_id)
+            if not usable_user(user, row.user_token_version):
+                return None
+            if row.last_used_at is None or row.last_used_at < now() - 300:
+                row.last_used_at = now()  # limité à une écriture / 5 min
+                await session.commit()
+            return AccessToken(
+                token=token, client_id=row.client_id, scopes=list(row.scopes),
+                expires_at=row.expires_at, resource=row.resource, subject=user.id,
+                claims={"role": user.role},
+            )
+
+    async def load_refresh_token(
+        self, client: OAuthClientInformationFull, refresh_token: str
+    ) -> RefreshToken | None:
+        async with db_mod.async_session_factory() as session:
+            row = await self._token_row(session, refresh_token, "refresh")
+            if row is None or row.client_id != client.client_id:
+                return None
+            if row.consumed_at is not None:
+                # Un refresh déjà échangé est rejoué : vol probable, on coupe tout.
+                await revoke_family(session, row.family_id)
+                await session.commit()
+                return None
+            if row.revoked_at is not None or row.expires_at < now():
+                return None
+            if not usable_user(await session.get(User, row.user_id), row.user_token_version):
+                return None
+            return RefreshToken(
+                token=refresh_token, client_id=row.client_id, scopes=list(row.scopes),
+                expires_at=row.expires_at, resource=row.resource, subject=row.user_id,
+            )
+
+    async def exchange_refresh_token(
+        self, client: OAuthClientInformationFull, refresh_token: RefreshToken, scopes: list[str]
+    ) -> OAuthToken:
+        async with db_mod.async_session_factory() as session:
+            row = await self._token_row(session, refresh_token.token, "refresh")
+            if row is None or row.consumed_at is not None or row.revoked_at is not None:
+                raise TokenError(error="invalid_grant", error_description="Jeton de rafraîchissement invalide")
+            user = await session.get(User, row.user_id)
+            if not usable_user(user, row.user_token_version):
+                raise TokenError(error="invalid_grant", error_description="Compte désactivé")
+            row.consumed_at = now()
+            token = await self.issue_tokens(
+                session, client_id=row.client_id, user=user, scopes=scopes,
+                family_id=row.family_id, granted_at=row.granted_at,
+            )
+            await session.commit()
+            return token
+
+    async def revoke_token(self, token: AccessToken | RefreshToken) -> None:
+        async with db_mod.async_session_factory() as session:
+            result = await session.execute(
+                select(OAuthTokenRow).where(OAuthTokenRow.token_hash == hash_secret(token.token))
+            )
+            row = result.scalar_one_or_none()
+            if row is not None:
+                await revoke_family(session, row.family_id)
+                await session.commit()
+
+    @staticmethod
+    async def _token_row(session, token: str, kind: str) -> OAuthTokenRow | None:
+        result = await session.execute(
+            select(OAuthTokenRow).where(
+                OAuthTokenRow.token_hash == hash_secret(token), OAuthTokenRow.kind == kind
+            )
+        )
+        return result.scalar_one_or_none()
+
+
+async def revoke_family(session, family_id: str) -> None:
+    await session.execute(
+        update(OAuthTokenRow)
+        .where(OAuthTokenRow.family_id == family_id, OAuthTokenRow.revoked_at.is_(None))
+        .values(revoked_at=now())
+    )

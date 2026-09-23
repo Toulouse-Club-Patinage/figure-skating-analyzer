@@ -43,3 +43,18 @@ async def start_authorization(provider, client, *, redirect: str = CLAUDE_REDIRE
         resource=f"{BASE}/mcp",
     ))
     return url.split("demande=", 1)[1]
+
+
+async def issue_test_tokens(provider, user):
+    """Jetons MCP valides pour `user`, sans passer par le navigateur."""
+    import app.database as db_mod
+    from app.mcp.oauth_provider import SCOPES_SUPPORTED, now
+
+    client = await register_test_client(provider)
+    async with db_mod.async_session_factory() as session:
+        token = await provider.issue_tokens(
+            session, client_id=client.client_id, user=user, scopes=list(SCOPES_SUPPORTED),
+            family_id=secrets.token_urlsafe(16), granted_at=now(),
+        )
+        await session.commit()
+    return token
