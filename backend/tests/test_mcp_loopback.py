@@ -4,27 +4,39 @@ from app.mcp.loopback import current_principal, is_allowed_path
 from mcp.server.auth.middleware.auth_context import auth_context_var
 from mcp.server.auth.middleware.bearer_auth import AuthenticatedUser
 from mcp.server.auth.provider import AccessToken
+from mcp.server.mcpserver.exceptions import ToolError
 
 
-def _set_token(claims: dict | None) -> None:
-    token = AccessToken(token="t", client_id="c", scopes=["skatelab:read"], subject="42", claims=claims)
-    auth_context_var.set(AuthenticatedUser(token))
+@pytest.fixture
+def set_token():
+    """Positionne auth_context_var pour le test, puis le réinitialise (évite la
+    fuite du principal vers les tests suivants, y compris asynchrones)."""
+    reset_token = None
+
+    def _set(claims: dict | None) -> None:
+        nonlocal reset_token
+        token = AccessToken(token="t", client_id="c", scopes=["skatelab:read"], subject="42", claims=claims)
+        reset_token = auth_context_var.set(AuthenticatedUser(token))
+
+    yield _set
+    if reset_token is not None:
+        auth_context_var.reset(reset_token)
 
 
-def test_current_principal_rejects_missing_role():
-    _set_token(claims={})
-    with pytest.raises(Exception, match="non authentifiée"):
+def test_current_principal_rejects_missing_role(set_token):
+    set_token(claims={})
+    with pytest.raises(ToolError, match="non authentifiée"):
         current_principal()
 
 
-def test_current_principal_rejects_none_claims():
-    _set_token(claims=None)
-    with pytest.raises(Exception, match="non authentifiée"):
+def test_current_principal_rejects_none_claims(set_token):
+    set_token(claims=None)
+    with pytest.raises(ToolError, match="non authentifiée"):
         current_principal()
 
 
-def test_current_principal_accepts_role():
-    _set_token(claims={"role": "admin"})
+def test_current_principal_accepts_role(set_token):
+    set_token(claims={"role": "admin"})
     assert current_principal() == ("42", "admin")
 
 
