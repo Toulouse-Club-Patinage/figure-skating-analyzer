@@ -39,11 +39,18 @@ def current_principal() -> tuple[str, str]:
     token = get_access_token()
     if token is None or not token.subject:
         raise ToolError("Session MCP non authentifiée")
-    return token.subject, (token.claims or {}).get("role", "reader")
+    role = (token.claims or {}).get("role")
+    if not role:
+        raise ToolError("Session MCP non authentifiée")
+    return token.subject, role
+
+
+def is_allowed_path(path: str) -> bool:
+    return any(p.fullmatch(path) for p in ALLOWED_PATHS)
 
 
 async def api_get(path: str, params: dict | None = None) -> Any:
-    if not any(p.match(path) for p in ALLOWED_PATHS):
+    if not is_allowed_path(path):
         raise ToolError(f"Route non autorisée : {path}")
     from app.main import litestar_app  # import tardif : app.main importe ce module
 

@@ -74,8 +74,16 @@ async def mcp_call(http, token: str, method: str, params: dict | None = None) ->
 
 
 def tool_json(result: dict):
-    """Contenu JSON d'un résultat d'outil (texte du premier bloc)."""
+    """Contenu JSON d'un résultat d'outil.
+
+    Les outils qui renvoient une liste (list[...]) sont sérialisés par le SDK MCP
+    dans `structuredContent: {"result": [...]}` plutôt que dans un unique bloc
+    `content[0].text` (qui, pour une liste, est éclaté en plusieurs blocs).
+    """
     import json
 
     assert result["isError"] is False, result
+    structured = result.get("structuredContent")
+    if structured is not None and "result" in structured:
+        return structured["result"]
     return json.loads(result["content"][0]["text"])
