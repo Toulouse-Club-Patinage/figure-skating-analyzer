@@ -13,7 +13,7 @@ import secrets
 import time
 
 from pydantic import AnyUrl
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 
 import app.database as db_mod
 from app.mcp.redirects import SkatelabClient, is_allowed_redirect
@@ -129,7 +129,16 @@ class SkatelabOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, 
                 raise TokenError(error="invalid_grant", error_description="Code invalide ou déjà utilisé")
             user = await session.get(User, req.user_id)
             scopes = list(req.scopes)
-            await session.delete(req)  # usage unique, même en cas d'échec ci-dessous
+            result = await session.execute(
+                delete(OAuthAuthRequest).where(
+                    OAuthAuthRequest.id == req.id,
+                    OAuthAuthRequest.code_hash == hash_secret(authorization_code.code),
+                    OAuthAuthRequest.client_id == client.client_id,
+                )
+            )
+            if result.rowcount != 1:  # déjà consommé par une requête concurrente
+                await session.commit()
+                raise TokenError(error="invalid_grant", error_description="Code invalide ou déjà utilisé")
             if not usable_user(user):
                 await session.commit()
                 raise TokenError(error="invalid_grant", error_description="Compte désactivé")
@@ -210,12 +219,28 @@ class SkatelabOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, 
     ) -> OAuthToken:
         async with db_mod.async_session_factory() as session:
             row = await self._token_row(session, refresh_token.token, "refresh")
-            if row is None or row.consumed_at is not None or row.revoked_at is not None:
+            if row is None:
+                raise TokenError(error="invalid_grant", error_description="Jeton de rafraîchissement invalide")
+            result = await session.execute(
+                update(OAuthTokenRow)
+                .where(
+                    OAuthTokenRow.id == row.id,
+                    OAuthTokenRow.consumed_at.is_(None),
+                    OAuthTokenRow.revoked_at.is_(None),
+                    OAuthTokenRow.client_id == client.client_id,
+                    OAuthTokenRow.expires_at > now(),
+                )
+                .values(consumed_at=now())
+            )
+            if result.rowcount != 1:
+                # Déjà consommé (rejeu concurrent) : vol probable, on coupe toute la famille.
+                await revoke_family(session, row.family_id)
+                await session.commit()
                 raise TokenError(error="invalid_grant", error_description="Jeton de rafraîchissement invalide")
             user = await session.get(User, row.user_id)
             if not usable_user(user, row.user_token_version):
+                await session.commit()
                 raise TokenError(error="invalid_grant", error_description="Compte désactivé")
-            row.consumed_at = now()
             token = await self.issue_tokens(
                 session, client_id=row.client_id, user=user, scopes=scopes,
                 family_id=row.family_id, granted_at=row.granted_at,

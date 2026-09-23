@@ -69,6 +69,27 @@ async def test_refresh_reuse_revokes_family(oauth_provider, admin_user):
     assert exc.value.error == "invalid_grant"
 
 
+async def test_concurrent_refresh_exchange_only_succeeds_once(oauth_provider, admin_user):
+    user, _ = admin_user
+    tok = await issue_test_tokens(oauth_provider, user)
+    client = await oauth_provider.get_client(
+        (await oauth_provider.load_access_token(tok.access_token)).client_id)
+    refresh = await oauth_provider.load_refresh_token(client, tok.refresh_token)
+
+    first = await oauth_provider.exchange_refresh_token(client, refresh, refresh.scopes)
+
+    # Deuxième requête concurrente avec le même jeton déjà chargé : la
+    # consommation atomique doit l'empêcher de réussir aussi.
+    with pytest.raises(TokenError) as exc:
+        await oauth_provider.exchange_refresh_token(client, refresh, refresh.scopes)
+    assert exc.value.error == "invalid_grant"
+
+    # La réutilisation détectée révoque toute la famille, y compris les
+    # jetons émis par la première requête.
+    assert await oauth_provider.load_access_token(first.access_token) is None
+    assert await oauth_provider.load_refresh_token(client, first.refresh_token) is None
+
+
 async def test_revoke_token_revokes_family(oauth_provider, admin_user):
     user, _ = admin_user
     tok = await issue_test_tokens(oauth_provider, user)

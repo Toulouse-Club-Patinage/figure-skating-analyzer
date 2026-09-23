@@ -74,6 +74,23 @@ async def test_approve_then_exchange_code_once(oauth_provider, db_session, admin
         await oauth_provider.exchange_authorization_code(client, auth_code)
 
 
+async def test_concurrent_exchange_code_only_succeeds_once(oauth_provider, db_session, admin_user):
+    user, _ = admin_user
+    client = await register_test_client(oauth_provider)
+    request_id = await start_authorization(oauth_provider, client)
+    url = await grants.decide(db_session, request_id, user, approve=True)
+    code = url.split("code=", 1)[1].split("&", 1)[0]
+    auth_code = await oauth_provider.load_authorization_code(client, code)
+
+    await oauth_provider.exchange_authorization_code(client, auth_code)
+
+    # Deuxième requête concurrente avec le même code déjà chargé : la
+    # consommation atomique doit l'empêcher de réussir aussi.
+    with pytest.raises(TokenError) as exc:
+        await oauth_provider.exchange_authorization_code(client, auth_code)
+    assert exc.value.error == "invalid_grant"
+
+
 async def test_code_bound_to_client(oauth_provider, db_session, admin_user):
     user, _ = admin_user
     client = await register_test_client(oauth_provider)
