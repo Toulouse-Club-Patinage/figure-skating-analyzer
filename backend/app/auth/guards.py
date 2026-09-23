@@ -79,3 +79,21 @@ async def require_skater_access(request: Request, skater_id: int, session: Async
     )
     if not result.scalar_one_or_none():
         raise PermissionDeniedException("You do not have access to this skater")
+
+
+async def linked_skater_ids(request: Request, session: AsyncSession) -> set[int] | None:
+    """Skater ids visible to the current user, or None when the role is not restricted.
+
+    Only the ``skater`` role is restricted to the skaters linked via ``UserSkater``.
+    """
+    state = request.scope.get("state", {})
+    if state.get("user_role") != "skater":
+        return None
+
+    from app.models.user_skater import UserSkater
+    from sqlalchemy import select
+
+    result = await session.execute(
+        select(UserSkater.skater_id).where(UserSkater.user_id == state["user_id"])
+    )
+    return set(result.scalars().all())
