@@ -32,6 +32,9 @@ from app.routes.notifications import router as notifications_router
 from app.routes.team_scores import router as team_scores_router
 from app.routes.program_builder import router as program_builder_router
 from app.routes.oauth import router as oauth_router
+from app.mcp.dispatcher import McpDispatcher
+from app.mcp.server import create_mcp_app
+from app.mcp.grants import purge_stale
 
 
 logger = logging.getLogger(__name__)
@@ -68,6 +71,11 @@ async def _polling_loop() -> None:
                 await session.commit()
         except Exception:
             logger.exception("Error in polling loop")
+        try:
+            async with async_session_factory() as session:
+                await purge_stale(session)
+        except Exception:
+            logger.exception("Error purging OAuth data")
 
 
 @asynccontextmanager
@@ -101,6 +109,15 @@ async def lifespan(_: Litestar) -> AsyncGenerator[None, None]:
         await job_queue.stop_worker()
 
 
+mcp_server, mcp_asgi = create_mcp_app()
+
+
+@asynccontextmanager
+async def mcp_lifespan(_: Litestar) -> AsyncGenerator[None, None]:
+    async with mcp_server.session_manager.run():
+        yield
+
+
 cors_config = CORSConfig(
     allow_origins=ALLOWED_ORIGINS,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
@@ -114,7 +131,7 @@ async def health_check() -> dict:
     return {"status": "ok"}
 
 
-app = Litestar(
+litestar_app = Litestar(
     route_handlers=[
         health_check,
         auth_router,
@@ -137,7 +154,7 @@ app = Litestar(
         oauth_router,
     ],
     cors_config=cors_config,
-    lifespan=[lifespan],
+    lifespan=[lifespan, mcp_lifespan],
     before_request=auth_guard,
     static_files_config=[
         StaticFilesConfig(
@@ -150,3 +167,6 @@ app = Litestar(
         ),
     ],
 )
+
+# Point d'entrée uvicorn (app.main:app) : dispatcher MCP/OAuth devant Litestar.
+app = McpDispatcher(litestar_app, mcp_asgi)

@@ -58,3 +58,24 @@ async def issue_test_tokens(provider, user):
         )
         await session.commit()
     return token
+
+
+MCP_HEADERS = {"Accept": "application/json, text/event-stream", "Content-Type": "application/json",
+               "mcp-protocol-version": "2025-06-18"}
+
+
+async def mcp_call(http, token: str, method: str, params: dict | None = None) -> dict:
+    r = await http.post("/mcp", headers={**MCP_HEADERS, "Authorization": f"Bearer {token}"},
+                        json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params or {}})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert "error" not in body, body
+    return body["result"]
+
+
+def tool_json(result: dict):
+    """Contenu JSON d'un résultat d'outil (texte du premier bloc)."""
+    import json
+
+    assert result["isError"] is False, result
+    return json.loads(result["content"][0]["text"])
