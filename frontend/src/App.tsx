@@ -25,6 +25,7 @@ import StatsPage from "./pages/StatsPage";
 import ClubCompetitionPage from "./pages/ClubCompetitionPage";
 import LoginPage from "./pages/LoginPage";
 import RequestAccountPage from "./pages/RequestAccountPage";
+import AuthorizePage from "./pages/AuthorizePage";
 import SetupPage from "./pages/SetupPage";
 import SettingsPage from "./pages/SettingsPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -466,6 +467,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/request-account" element={<RequestAccountPage />} />
+      <Route path="/autorisation" element={<AuthorizePage />} />
       <Route
         path="/setup"
         element={

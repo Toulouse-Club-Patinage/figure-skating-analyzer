@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../auth/AuthContext";
 import { api } from "../api/client";
 import SupportLink from "../components/SupportLink";
+import { safeNext } from "../auth/safeNext";
 
 declare global {
   interface Window {
@@ -21,6 +22,8 @@ declare global {
 export default function LoginPage() {
   const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const next = safeNext(searchParams.get("next"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -45,7 +48,7 @@ export default function LoginPage() {
       setLoading(true);
       try {
         await loginWithGoogle(response.credential);
-        navigate("/", { replace: true });
+        navigate(next, { replace: true });
       } catch (err: any) {
         setError(
           err.message?.includes("403")
@@ -56,7 +59,7 @@ export default function LoginPage() {
         setLoading(false);
       }
     },
-    [loginWithGoogle, navigate]
+    [loginWithGoogle, navigate, next]
   );
 
   useEffect(() => {
@@ -91,7 +94,7 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await login(email, password);
-      navigate("/", { replace: true });
+      navigate(next, { replace: true });
     } catch (err: any) {
       setError(
         err.message?.includes("401")

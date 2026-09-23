@@ -383,6 +383,23 @@ export interface LoginResponse {
   user: AuthUser;
 }
 
+export interface OAuthRequestInfo {
+  request_id: string;
+  client_name: string;
+  redirect_host: string;
+  is_loopback: boolean;
+  role: string;
+}
+
+export interface OAuthGrant {
+  family_id: string;
+  client_name: string;
+  user_id: string;
+  user_display_name: string;
+  granted_at: number;
+  last_used_at: number | null;
+}
+
 export interface UserRecord {
   id: string;
   email: string;
@@ -1036,6 +1053,18 @@ export const api = {
           body: JSON.stringify(data),
         }
       ),
+  },
+
+  oauth: {
+    getRequest: (id: string) => request<OAuthRequestInfo>(`/oauth/requests/${encodeURIComponent(id)}`),
+    decide: (id: string, approve: boolean) =>
+      request<{ redirect_url: string }>("/oauth/consent", {
+        method: "POST",
+        body: JSON.stringify({ request_id: id, approve }),
+      }),
+    grants: (all = false) => request<OAuthGrant[]>(`/oauth/grants${all ? "?all=true" : ""}`),
+    revoke: (familyId: string) =>
+      request<void>(`/oauth/grants/${encodeURIComponent(familyId)}`, { method: "DELETE" }),
   },
 
   users: {
