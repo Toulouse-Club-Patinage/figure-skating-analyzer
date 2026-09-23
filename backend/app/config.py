@@ -1,5 +1,8 @@
+import logging
 import os
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).parent.parent
 DATA_DIR = BASE_DIR / "data"
@@ -20,6 +23,21 @@ GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 # à l'URL MCP ({PUBLIC_BASE_URL}/mcp) : elle doit correspondre EXACTEMENT à
 # l'URL que les utilisateurs saisissent dans Claude. HTTPS obligatoire hors localhost.
 PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "http://localhost:5173").rstrip("/")
+
+
+def _warn_if_localhost_issuer_in_production(public_base_url: str, secure_cookies: bool) -> None:
+    """I-1 : PUBLIC_BASE_URL=localhost avec SECURE_COOKIES=true sent l'oubli en
+    production (le serveur MCP annoncerait alors un issuer localhost)."""
+    if secure_cookies and ("://localhost" in public_base_url or "://127.0.0.1" in public_base_url):
+        logger.warning(
+            "PUBLIC_BASE_URL=%s pointe vers localhost alors que SECURE_COOKIES=true : "
+            "signe probable d'un PUBLIC_BASE_URL oublié en production (le serveur MCP "
+            "annoncera un issuer localhost).",
+            public_base_url,
+        )
+
+
+_warn_if_localhost_issuer_in_production(PUBLIC_BASE_URL, SECURE_COOKIES)
 
 # Bootstrap (optional — used on first run if set)
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "")

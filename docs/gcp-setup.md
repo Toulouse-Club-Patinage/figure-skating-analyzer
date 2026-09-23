@@ -185,6 +185,7 @@ CLUB_NAME=Toulouse Club Patinage
 CLUB_SHORT=TOUCP
 ALLOWED_ORIGINS=https://skatelab.toulouseclubpatinage.com
 DATABASE_URL=sqlite+aiosqlite:////data/skating.db
+PUBLIC_BASE_URL=https://skatelab.toulouseclubpatinage.com
 ```
 
 ### docker-compose.yml

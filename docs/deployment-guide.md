@@ -446,9 +446,13 @@ l'activer :
 - Définissez `PUBLIC_BASE_URL=https://<domaine>` dans l'environnement du
   backend — l'URL publique exacte de votre instance, **sans slash final**,
   en **HTTPS**. C'est l'issuer OAuth : il doit correspondre exactement au
-  domaine réellement utilisé. Sur la VM GCP, cette variable se règle dans le
-  `docker-compose.yml` écrit à la main sur la VM (voir `docs/gcp-setup.md`
-  §6), pas dans ce dépôt.
+  domaine réellement utilisé. Sur la VM GCP, le service `backend` du
+  `docker-compose.yml` écrit à la main sur la VM lit `env_file: .env` (voir
+  `docs/gcp-setup.md` §6) : c'est donc dans ce fichier `.env`, pas dans ce
+  dépôt ni dans `docker-compose.yml` lui-même, que `PUBLIC_BASE_URL` se règle.
+  Une valeur absente ou invalide ne fait pas planter le reste de
+  l'application : le backend démarre quand même et `/mcp` répond 503 tant que
+  la variable n'est pas corrigée.
 - L'image frontend (nginx) relaie déjà `/mcp`, `/authorize`, `/token`,
   `/register`, `/revoke` et `/.well-known/oauth-*` vers le backend — aucune
   configuration supplémentaire n'est nécessaire côté proxy.

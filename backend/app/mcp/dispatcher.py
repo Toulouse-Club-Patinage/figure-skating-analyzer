@@ -28,6 +28,14 @@ class McpDispatcher:
 
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http" and is_mcp_path(scope["path"]):
+            if self.mcp_app is None:
+                response = JSONResponse(
+                    {"error": "temporarily_unavailable",
+                     "error_description": "Serveur MCP désactivé : PUBLIC_BASE_URL invalide"},
+                    status_code=503,
+                )
+                await response(scope, receive, send)
+                return
             if scope["path"] == "/register" and scope["method"] == "POST":
                 if not register_limiter.is_allowed("global"):
                     response = JSONResponse(

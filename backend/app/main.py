@@ -9,6 +9,7 @@ from litestar.config.cors import CORSConfig
 from litestar.static_files import StaticFilesConfig
 from sqlalchemy import select
 
+from app import config
 from app.config import ALLOWED_ORIGINS, LOGOS_DIR, PDF_DIR
 from app.database import init_db, async_session_factory
 from app.auth.guards import auth_guard
@@ -109,11 +110,32 @@ async def lifespan(_: Litestar) -> AsyncGenerator[None, None]:
         await job_queue.stop_worker()
 
 
-mcp_server, mcp_asgi = create_mcp_app()
+def _create_mcp_app_safe():
+    """Enveloppe `create_mcp_app` : une `PUBLIC_BASE_URL` invalide (HTTP hors
+    localhost, query string...) ne doit pas empêcher tout `app.main` de démarrer.
+    """
+    try:
+        return create_mcp_app()
+    except ValueError:
+        logger.error(
+            "Serveur MCP désactivé : PUBLIC_BASE_URL=%r est invalide (doit être une "
+            "URL HTTPS, sans slash final, hors localhost). Le reste de l'application "
+            "démarre normalement ; corrigez PUBLIC_BASE_URL puis redémarrez pour "
+            "réactiver /mcp et les endpoints OAuth.",
+            config.PUBLIC_BASE_URL,
+            exc_info=True,
+        )
+        return None, None
+
+
+mcp_server, mcp_asgi = _create_mcp_app_safe()
 
 
 @asynccontextmanager
 async def mcp_lifespan(_: Litestar) -> AsyncGenerator[None, None]:
+    if mcp_server is None:
+        yield
+        return
     async with mcp_server.session_manager.run():
         yield
 
