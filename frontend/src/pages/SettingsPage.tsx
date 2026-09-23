@@ -237,6 +237,29 @@ export default function SettingsPage() {
     },
   });
 
+  // Le mot de passe n'est affiché qu'ici, une seule fois : l'admin le
+  // transmet lui-même quand l'email n'arrive pas.
+  const [confirmingResetId, setConfirmingResetId] = useState<string | null>(null);
+  const [resetSendEmail, setResetSendEmail] = useState(false);
+  const [resetResult, setResetResult] = useState<{
+    userId: string;
+    temp_password: string;
+    email_sent: boolean;
+    email_requested: boolean;
+  } | null>(null);
+  const [resetCopied, setResetCopied] = useState(false);
+
+  const resetUserPassword = useMutation({
+    mutationFn: ({ id, sendEmail }: { id: string; sendEmail: boolean }) =>
+      api.users.resetPassword(id, sendEmail),
+    onSuccess: (data, { id, sendEmail }) => {
+      setResetResult({ userId: id, ...data, email_requested: sendEmail });
+      setResetCopied(false);
+      setConfirmingResetId(null);
+      setResetSendEmail(false);
+    },
+  });
+
   // --- Domains ---
   const [newDomain, setNewDomain] = useState("");
 
@@ -1614,6 +1637,43 @@ export default function SettingsPage() {
                               >
                                 <span className="material-symbols-outlined text-sm">edit</span>
                               </button>
+                              {confirmingResetId === u.id ? (
+                                <span className="flex items-center gap-1">
+                                  <label className="flex items-center gap-1 text-xs text-on-surface-variant mr-1">
+                                    <input
+                                      type="checkbox"
+                                      checked={resetSendEmail}
+                                      onChange={(e) => setResetSendEmail(e.target.checked)}
+                                    />
+                                    Envoyer par email
+                                  </label>
+                                  <button
+                                    onClick={() => resetUserPassword.mutate({ id: u.id, sendEmail: resetSendEmail })}
+                                    disabled={resetUserPassword.isPending}
+                                    className="text-xs px-2 py-1 rounded-lg bg-primary text-on-primary font-bold disabled:opacity-50"
+                                  >
+                                    {resetUserPassword.isPending ? "..." : "Réinitialiser"}
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmingResetId(null)}
+                                    className="text-xs px-2 py-1 rounded-lg text-on-surface-variant hover:bg-surface-container"
+                                  >
+                                    Annuler
+                                  </button>
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => {
+                                    setConfirmingResetId(u.id);
+                                    setResetSendEmail(false);
+                                    resetUserPassword.reset();
+                                  }}
+                                  className="text-on-surface-variant hover:bg-surface-container rounded-lg px-2 py-1"
+                                  title="Réinitialiser le mot de passe"
+                                >
+                                  <span className="material-symbols-outlined text-sm">lock_reset</span>
+                                </button>
+                              )}
                               {confirmingDeleteId === u.id ? (
                                 <span className="flex items-center gap-1">
                                   <button
@@ -1647,6 +1707,52 @@ export default function SettingsPage() {
               </tbody>
             </table>
           </div>
+
+          {resetUserPassword.isError && (
+            <p className="text-error text-xs mt-3">{String(resetUserPassword.error)}</p>
+          )}
+
+          {resetResult && (
+            <div className="mt-4 p-4 bg-surface-container-low rounded-xl space-y-3">
+              <h3 className="text-xs font-bold text-on-surface-variant uppercase tracking-wider">
+                Nouveau mot de passe — {users.find((u) => u.id === resetResult.userId)?.display_name}
+              </h3>
+              <div className="flex items-center gap-2">
+                <code className="font-mono text-base px-3 py-1.5 bg-surface-container-lowest rounded-lg text-on-surface select-all">
+                  {resetResult.temp_password}
+                </code>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(resetResult.temp_password);
+                    setResetCopied(true);
+                  }}
+                  className="text-xs px-2 py-1 rounded-lg text-primary hover:bg-primary/10 flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-sm">
+                    {resetCopied ? "check" : "content_copy"}
+                  </span>
+                  {resetCopied ? "Copié" : "Copier"}
+                </button>
+              </div>
+              <p className="text-xs text-on-surface-variant">
+                Valable 7 jours, à changer à la première connexion. Il ne sera plus affiché
+                après fermeture : transmettez-le par un moyen sûr (SMS, téléphone).
+              </p>
+              {resetResult.email_requested && (
+                <p className={`text-xs ${resetResult.email_sent ? "text-primary" : "text-error"}`}>
+                  {resetResult.email_sent
+                    ? "Email envoyé (la distribution n'est pas garantie)."
+                    : "L'email n'a pas pu être envoyé."}
+                </p>
+              )}
+              <button
+                onClick={() => setResetResult(null)}
+                className="text-xs px-3 py-1.5 rounded-lg bg-primary text-on-primary font-bold hover:bg-primary/90"
+              >
+                Fermer
+              </button>
+            </div>
+          )}
 
           {/* Inline edit details (skater picker, display name) - shown below table */}
           {editingUserId && (

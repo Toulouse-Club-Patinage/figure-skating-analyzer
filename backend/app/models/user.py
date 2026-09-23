@@ -29,6 +29,11 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     token_version: Mapped[int] = mapped_column(Integer, default=0)
     must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Date d'émission du mot de passe temporaire posé par un admin ; à défaut,
+    # le délai de validité se calcule depuis la demande de compte.
+    temp_password_set_at: Mapped[datetime | None] = mapped_column(
+        DateTime, nullable=True, default=None
+    )
     email_notifications: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=_utcnow

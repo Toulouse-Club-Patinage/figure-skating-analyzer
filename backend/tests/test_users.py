@@ -170,3 +170,135 @@ async def test_create_skater_user_with_linked_skaters(db_session):
     links = result.scalars().all()
     assert len(links) == 1
     assert links[0].skater_id == skater.id
+
+
+@pytest.fixture
+def _reset_login_limiter():
+    from app.auth.rate_limit import login_limiter
+
+    login_limiter._attempts.clear()
+    yield
+    login_limiter._attempts.clear()
+
+
+@pytest.mark.asyncio
+async def test_reset_password_renvoie_un_mot_de_passe_temporaire(
+    client, admin_token, reader_user, _reset_login_limiter
+):
+    user, old_password = reader_user
+    resp = await client.post(
+        f"/api/users/{user.id}/reset-password",
+        json={},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["temp_password"]) >= 12
+    assert body["email_sent"] is False
+
+    old = await client.post(
+        "/api/auth/login", json={"email": user.email, "password": old_password}
+    )
+    assert old.status_code == 401
+
+    new = await client.post(
+        "/api/auth/login", json={"email": user.email, "password": body["temp_password"]}
+    )
+    assert new.status_code == 200
+    assert new.json()["user"]["must_change_password"] is True
+
+
+@pytest.mark.asyncio
+async def test_reset_password_ignore_une_demande_de_compte_perimee(
+    client, db_session, admin_token, _reset_login_limiter
+):
+    """Le délai de 7 jours repart de la réinitialisation, pas de la demande."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.auth.passwords import hash_password
+    from app.models.account_request import AccountRequest
+    from app.models.user import User
+
+    user = User(
+        email="vieille-demande@exemple.fr",
+        display_name="Vieille demande",
+        role="skater",
+        password_hash=hash_password("Temporaire123"),
+        must_change_password=True,
+    )
+    db_session.add(user)
+    await db_session.flush()
+    db_session.add(
+        AccountRequest(
+            id=951,
+            email=user.email,
+            display_name=user.display_name,
+            licence_numbers=["1"],
+            status="created",
+            user_id=user.id,
+            created_at=datetime.now(timezone.utc) - timedelta(days=10),
+        )
+    )
+    await db_session.commit()
+
+    resp = await client.post(
+        f"/api/users/{user.id}/reset-password",
+        json={},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    login = await client.post(
+        "/api/auth/login",
+        json={"email": user.email, "password": resp.json()["temp_password"]},
+    )
+    assert login.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_reset_password_envoie_l_email_sur_demande(
+    client, admin_token, reader_user, monkeypatch
+):
+    import app.routes.users as users_routes
+
+    sent: list[dict] = []
+
+    async def fake_smtp(session):
+        return {"host": "smtp.test", "port": 587, "user": "", "password": "", "from_addr": "x@test"}
+
+    async def fake_send(**kwargs):
+        sent.append(kwargs)
+        return True
+
+    monkeypatch.setattr(users_routes, "get_smtp_config", fake_smtp)
+    monkeypatch.setattr(users_routes, "send_email", fake_send)
+
+    user, _ = reader_user
+    resp = await client.post(
+        f"/api/users/{user.id}/reset-password",
+        json={"send_email": True},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["email_sent"] is True
+    assert sent[0]["to"] == user.email
+    assert sent[0]["context"]["temp_password"] == resp.json()["temp_password"]
+
+
+@pytest.mark.asyncio
+async def test_reset_password_interdit_aux_non_admins(client, reader_token, reader_user):
+    user, _ = reader_user
+    resp = await client.post(
+        f"/api/users/{user.id}/reset-password",
+        json={},
+        headers={"Authorization": f"Bearer {reader_token}"},
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_reset_password_utilisateur_inconnu(client, admin_token):
+    resp = await client.post(
+        "/api/users/inconnu/reset-password",
+        json={},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp.status_code == 404

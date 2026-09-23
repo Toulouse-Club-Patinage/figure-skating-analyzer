@@ -75,23 +75,32 @@ async def login(data: dict, session: AsyncSession) -> Response:
         raise NotAuthorizedException("Account is disabled")
 
     # Mot de passe temporaire périmé : la demande devient caduque (évalué à la
-    # connexion, pas de tâche planifiée).
+    # connexion, pas de tâche planifiée). Une réinitialisation admin
+    # (`temp_password_set_at`) fait repartir le délai.
     if user.must_change_password:
-        pending = (
-            await session.execute(
-                select(AccountRequest)
-                .where(AccountRequest.user_id == user.id, AccountRequest.status == "created")
-                .order_by(AccountRequest.created_at.desc())
-                .limit(1)
-            )
-        ).scalar_one_or_none()
-        if pending is not None:
-            created = pending.created_at
-            if created.tzinfo is None:
-                created = created.replace(tzinfo=timezone.utc)
-            if datetime.now(timezone.utc) - created > _TEMP_PASSWORD_TTL:
-                pending.status = "expired"
-                await session.commit()
+        pending = None
+        issued_at = user.temp_password_set_at
+        if issued_at is None:
+            # `expired` inclus : sinon la tentative suivante passerait.
+            pending = (
+                await session.execute(
+                    select(AccountRequest)
+                    .where(
+                        AccountRequest.user_id == user.id,
+                        AccountRequest.status.in_(("created", "expired")),
+                    )
+                    .order_by(AccountRequest.created_at.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            issued_at = pending.created_at if pending is not None else None
+        if issued_at is not None:
+            if issued_at.tzinfo is None:
+                issued_at = issued_at.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) - issued_at > _TEMP_PASSWORD_TTL:
+                if pending is not None and pending.status == "created":
+                    pending.status = "expired"
+                    await session.commit()
                 raise NotAuthorizedException("Temporary password has expired")
 
     user.last_login_at = datetime.now(timezone.utc)

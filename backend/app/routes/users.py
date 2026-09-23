@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from litestar import Router, get, post, patch, delete, Request, Response
 from litestar.di import Provide
 from litestar.exceptions import NotFoundException
@@ -9,7 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.guards import require_admin
 from app.auth.passwords import hash_password
 from app.database import get_session
+from app.models.app_settings import AppSettings
 from app.models.user_skater import UserSkater
+from app.services.account_request import generate_temp_password
+from app.services.email_service import get_smtp_config, send_email
 
 
 async def _sync_skater_links(session: AsyncSession, user_id: str, skater_ids: list[int]) -> None:
@@ -184,8 +189,56 @@ async def delete_user(
     return Response(content=None, status_code=204)
 
 
+@post("/{user_id:str}/reset-password", status_code=200)
+async def reset_password(
+    user_id: str, data: dict, request: Request, session: AsyncSession
+) -> dict:
+    """Pose un mot de passe temporaire et le renvoie une seule fois à l'admin.
+
+    Recours quand l'email n'arrive pas : l'admin le transmet par un autre canal.
+    """
+    require_admin(request)
+    from app.models.user import User
+
+    user = (
+        await session.execute(select(User).where(User.id == user_id))
+    ).scalar_one_or_none()
+    if not user:
+        raise NotFoundException("User not found")
+
+    temp_password = generate_temp_password()
+    user.password_hash = hash_password(temp_password)
+    user.must_change_password = True
+    user.temp_password_set_at = datetime.now(timezone.utc)
+    user.token_version += 1  # déconnecte les sessions ouvertes
+    await session.commit()
+
+    email_sent = False
+    if data.get("send_email"):
+        smtp = await get_smtp_config(session)
+        if smtp:
+            settings = (
+                await session.execute(select(AppSettings).limit(1))
+            ).scalar_one_or_none()
+            club_name = settings.club_name if settings else "SkateLab"
+            email_sent = await send_email(
+                to=user.email,
+                subject=f"Nouveau mot de passe — {club_name}",
+                template_name="password_reset.html",
+                context={
+                    "club_name": club_name,
+                    "display_name": user.display_name,
+                    "email": user.email,
+                    "temp_password": temp_password,
+                },
+                smtp_config=smtp,
+            )
+
+    return {"temp_password": temp_password, "email_sent": email_sent}
+
+
 router = Router(
     path="/api/users",
-    route_handlers=[list_users, create_user, update_user, delete_user],
+    route_handlers=[list_users, create_user, update_user, delete_user, reset_password],
     dependencies={"session": Provide(get_session)},
 )

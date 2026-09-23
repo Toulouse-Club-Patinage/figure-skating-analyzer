@@ -1057,6 +1057,11 @@ export const api = {
       }),
     delete: (id: string) =>
       request<void>(`/users/${id}`, { method: "DELETE" }),
+    resetPassword: (id: string, sendEmail: boolean) =>
+      request<{ temp_password: string; email_sent: boolean }>(
+        `/users/${id}/reset-password`,
+        { method: "POST", body: JSON.stringify({ send_email: sendEmail }) }
+      ),
   },
 
   domains: {

@@ -264,3 +264,34 @@ async def test_le_front_sait_si_le_formulaire_est_actif(client, db_session):
     resp = await client.get("/api/config/account-requests-enabled")
     assert resp.status_code == 200
     assert resp.json() == {"enabled": True}
+
+
+async def test_login_reste_refuse_apres_expiration_du_mot_de_passe_temporaire(client, db_session):
+    """Une fois la demande passée à `expired`, le même mot de passe reste refusé."""
+    from app.auth.passwords import hash_password
+
+    user = User(
+        email="perime-bis@exemple.fr",
+        display_name="Périmé bis",
+        role="skater",
+        password_hash=hash_password("Temporaire123"),
+        must_change_password=True,
+    )
+    db_session.add(user)
+    await db_session.flush()
+    db_session.add(
+        AccountRequest(
+            id=903,
+            email="perime-bis@exemple.fr",
+            display_name="Périmé bis",
+            licence_numbers=["1"],
+            status="created",
+            user_id=user.id,
+            created_at=datetime.now(timezone.utc) - timedelta(days=8),
+        )
+    )
+    await db_session.commit()
+
+    payload = {"email": "perime-bis@exemple.fr", "password": "Temporaire123"}
+    assert (await client.post("/api/auth/login", json=payload)).status_code == 401
+    assert (await client.post("/api/auth/login", json=payload)).status_code == 401

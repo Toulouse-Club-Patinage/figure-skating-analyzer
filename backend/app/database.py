@@ -75,6 +75,7 @@ async def _migrate_add_columns(conn) -> None:
         ("app_settings", "french_ranking_club_names", "JSON"),
         ("users", "tutorial_seen_at", "DATETIME"),
         ("app_settings", "support_email", "VARCHAR(255)"),
+        ("users", "temp_password_set_at", "DATETIME"),
     ]
     for table, column, col_type in _MIGRATIONS:
         try:
