@@ -20,6 +20,18 @@ async def test_request_details_and_approve(client, oauth_provider, skater_token)
     assert r.json()["redirect_url"].startswith("https://claude.ai/api/mcp/auth_callback?code=")
 
 
+async def test_consent_string_false_does_not_approve(client, oauth_provider, skater_token):
+    """M-3 : `approve: "false"` (chaîne non vide, donc truthy) ne doit pas autoriser."""
+    oc = await register_test_client(oauth_provider)
+    rid = await start_authorization(oauth_provider, oc)
+
+    r = await client.post("/api/oauth/consent", json={"request_id": rid, "approve": "false"},
+                          headers=_auth(skater_token))
+    assert r.status_code == 200
+    assert "error=access_denied" in r.json()["redirect_url"]
+    assert "code=" not in r.json()["redirect_url"]
+
+
 async def test_loopback_request_is_flagged(client, oauth_provider, admin_token):
     oc = await register_test_client(oauth_provider, redirect="http://localhost:3118/callback")
     rid = await start_authorization(oauth_provider, oc, redirect="http://localhost:3118/callback")

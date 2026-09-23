@@ -42,7 +42,7 @@ async def get_request(request_id: str, request: Request, session: AsyncSession) 
 async def consent(data: dict, request: Request, session: AsyncSession) -> dict:
     user = await _current_user(request, session)
     try:
-        url = await grants.decide(session, str(data.get("request_id", "")), user, bool(data.get("approve")))
+        url = await grants.decide(session, str(data.get("request_id", "")), user, data.get("approve") is True)
     except grants.ConsentError as e:
         if e.reason == "must_change_password":
             raise ClientException(status_code=409, detail="Changez d'abord votre mot de passe")
