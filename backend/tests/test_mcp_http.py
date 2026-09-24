@@ -13,6 +13,8 @@ async def test_discovery_documents(mcp_http):
     prm = (await mcp_http.get("/.well-known/oauth-protected-resource/mcp")).json()
     assert prm["resource"] == "http://localhost/mcp"
     assert prm["authorization_servers"] == ["http://localhost"]
+    # Les clients MCP demandent les scopes annoncés ici : import doit y figurer.
+    assert set(prm["scopes_supported"]) >= {"skatelab:read", "skatelab:import"}
 
     asm = (await mcp_http.get("/.well-known/oauth-authorization-server")).json()
     assert asm["issuer"] == "http://localhost"

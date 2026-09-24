@@ -64,7 +64,15 @@ class SkatelabOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, 
     async def get_client(self, client_id: str) -> OAuthClientInformationFull | None:
         async with db_mod.async_session_factory() as session:
             row = await session.get(OAuthClient, client_id)
-            return SkatelabClient.model_validate(row.metadata_json) if row else None
+            if row is None:
+                return None
+            client = SkatelabClient.model_validate(row.metadata_json)
+            # Clients enregistrés avant l'ajout de skatelab:import : on l'autorise
+            # (le consentement le retire de toute façon aux non-admins).
+            scopes = (client.scope or "").split()
+            if SCOPE in scopes and IMPORT_SCOPE not in scopes:
+                client.scope = " ".join([*scopes, IMPORT_SCOPE])
+            return client
 
     async def register_client(self, client_info: OAuthClientInformationFull) -> None:
         uris = [str(u) for u in client_info.redirect_uris or []]
