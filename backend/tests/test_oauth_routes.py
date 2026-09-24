@@ -125,9 +125,19 @@ async def test_non_admin_consent_drops_import_scope(client, oauth_provider, non_
 
 
 async def test_default_scopes_follow_client_registration(client, oauth_provider, admin_token):
-    """Sans scope demandé : les scopes enregistrés par le client (import inclus s'il l'a demandé)."""
+    """Sans scope demandé : les scopes enregistrés par le client (import ajouté si read y figure)."""
     info, scopes = await _granted_scopes(client, oauth_provider, admin_token, scopes=[])
     assert "skatelab:import" in scopes and info["can_import"] is True
     info, scopes = await _granted_scopes(client, oauth_provider, admin_token, scopes=[],
-                                         reg_scope="skatelab:read offline_access")
+                                         reg_scope="skatelab:read")
+    assert "skatelab:import" in scopes  # client enregistré avant l'ajout du scope : élargi
+    info, scopes = await _granted_scopes(client, oauth_provider, admin_token, scopes=[],
+                                         reg_scope="offline_access")
     assert "skatelab:import" not in scopes and info["can_import"] is False
+
+
+async def test_client_registered_before_import_scope_can_request_it(client, oauth_provider, admin_token):
+    """Un client enregistré avec « skatelab:read offline_access » (avant l'ajout
+    du scope import) doit pouvoir demander skatelab:import lors d'une reconnexion."""
+    oc = await register_test_client(oauth_provider, scope="skatelab:read offline_access")
+    assert oc.validate_scope("skatelab:read skatelab:import offline_access")

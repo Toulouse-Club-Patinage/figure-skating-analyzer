@@ -5,10 +5,10 @@ from starlette.applications import Starlette
 from starlette.routing import Route
 
 from app import config
-from app.mcp.oauth_provider import SCOPE, SCOPES_SUPPORTED, SkatelabOAuthProvider
+from app.mcp.oauth_provider import IMPORT_SCOPE, SCOPE, SCOPES_SUPPORTED, SkatelabOAuthProvider
 from app.mcp.tools import register_tools
 from mcp.server.auth.handlers.metadata import MetadataHandler
-from mcp.server.auth.routes import build_metadata, cors_middleware
+from mcp.server.auth.routes import build_metadata, cors_middleware, create_protected_resource_routes
 from mcp.server.auth.settings import AuthSettings, ClientRegistrationOptions, RevocationOptions
 from mcp.server.mcpserver import MCPServer
 
@@ -36,6 +36,20 @@ def _auth_server_metadata_route(auth: AuthSettings) -> Route:
     )
 
 
+def _protected_resource_routes(auth: AuthSettings) -> list[Route]:
+    """Métadonnées RFC 9728 annonçant aussi skatelab:import.
+
+    Le SDK y met `required_scopes` seul ; or les clients MCP demandent les scopes
+    annoncés ici, et n'obtiendraient jamais l'import (retiré ensuite au
+    consentement pour les non-admins).
+    """
+    return create_protected_resource_routes(
+        resource_url=auth.resource_server_url,
+        authorization_servers=[auth.issuer_url],
+        scopes_supported=[SCOPE, IMPORT_SCOPE],
+    )
+
+
 def create_mcp_app(base_url: str | None = None) -> tuple[MCPServer, Starlette]:
     base = (base_url or config.PUBLIC_BASE_URL).rstrip("/")
     auth = AuthSettings(
@@ -55,5 +69,5 @@ def create_mcp_app(base_url: str | None = None) -> tuple[MCPServer, Starlette]:
     starlette_app = server.streamable_http_app(
         streamable_http_path="/mcp", stateless_http=True, json_response=True, host="0.0.0.0",
     )
-    starlette_app.router.routes.insert(0, _auth_server_metadata_route(auth))
+    starlette_app.router.routes[:0] = [_auth_server_metadata_route(auth), *_protected_resource_routes(auth)]
     return server, starlette_app
