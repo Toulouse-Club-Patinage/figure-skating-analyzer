@@ -18,7 +18,8 @@ def pkce_pair() -> tuple[str, str]:
     return verifier, challenge
 
 
-async def register_test_client(provider, redirect: str = CLAUDE_REDIRECT):
+async def register_test_client(provider, redirect: str = CLAUDE_REDIRECT,
+                               scope: str = "skatelab:read offline_access"):
     info = OAuthClientInformationFull(
         client_id=str(uuid.uuid4()),
         client_name="Claude",
@@ -26,17 +27,18 @@ async def register_test_client(provider, redirect: str = CLAUDE_REDIRECT):
         token_endpoint_auth_method="none",
         grant_types=["authorization_code", "refresh_token"],
         response_types=["code"],
-        scope="skatelab:read offline_access",
+        scope=scope,
     )
     await provider.register_client(info)
     return await provider.get_client(info.client_id)
 
 
 async def start_authorization(provider, client, *, redirect: str = CLAUDE_REDIRECT, state: str = "etat",
-                              challenge: str | None = None) -> str:
+                              challenge: str | None = None,
+                              scopes: list[str] | None = None) -> str:
     url = await provider.authorize(client, AuthorizationParams(
         state=state,
-        scopes=["skatelab:read", "offline_access"],
+        scopes=["skatelab:read", "offline_access"] if scopes is None else scopes,
         code_challenge=challenge or pkce_pair()[1],
         redirect_uri=AnyUrl(redirect),
         redirect_uri_provided_explicitly=True,

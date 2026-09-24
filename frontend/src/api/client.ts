@@ -389,6 +389,7 @@ export interface OAuthRequestInfo {
   redirect_host: string;
   is_loopback: boolean;
   role: string;
+  can_import: boolean;
 }
 
 export interface OAuthGrant {

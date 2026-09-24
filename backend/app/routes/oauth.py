@@ -35,6 +35,7 @@ async def get_request(request_id: str, request: Request, session: AsyncSession) 
         "redirect_host": urlsplit(req.redirect_uri).hostname,
         "is_loopback": is_loopback(req.redirect_uri),
         "role": request.scope["state"]["user_role"],
+        "can_import": grants.can_import(req, request.scope["state"]["user_role"]),
     }
 
 

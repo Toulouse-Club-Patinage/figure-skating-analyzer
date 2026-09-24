@@ -1,3 +1,7 @@
+import pytest
+import pytest_asyncio
+
+
 from tests.mcp_helpers import issue_test_tokens, register_test_client, start_authorization
 
 
@@ -87,3 +91,43 @@ async def test_cannot_revoke_someone_elses_grant(client, oauth_provider, admin_u
     async with db_mod.async_session_factory() as s:
         family = (await grants.list_grants(s, admin.id))[0]["family_id"]
     assert (await client.delete(f"/api/oauth/grants/{family}", headers=_auth(reader_token))).status_code == 404
+
+
+async def _granted_scopes(client, oauth_provider, token, *, scopes=None, reg_scope=None):
+    from app.mcp.oauth_provider import SCOPES_SUPPORTED
+    oc = await register_test_client(oauth_provider, scope=reg_scope or " ".join(SCOPES_SUPPORTED))
+    rid = await start_authorization(oauth_provider, oc, scopes=scopes)
+    info = (await client.get(f"/api/oauth/requests/{rid}", headers=_auth(token))).json()
+    r = await client.post("/api/oauth/consent", json={"request_id": rid, "approve": True}, headers=_auth(token))
+    code = r.json()["redirect_url"].split("code=", 1)[1].split("&", 1)[0]
+    return info, (await oauth_provider.load_authorization_code(oc, code)).scopes
+
+
+async def test_admin_consent_keeps_import_scope(client, oauth_provider, admin_token):
+    info, scopes = await _granted_scopes(client, oauth_provider, admin_token,
+                                         scopes=["skatelab:read", "skatelab:import", "offline_access"])
+    assert info["can_import"] is True
+    assert "skatelab:import" in scopes
+
+
+@pytest_asyncio.fixture
+async def non_admin_token(request, reader_token, coach_token, skater_token):
+    return {"reader": reader_token, "coach": coach_token, "skater": skater_token}[request.param]
+
+
+@pytest.mark.parametrize("non_admin_token", ["reader", "coach", "skater"], indirect=True)
+async def test_non_admin_consent_drops_import_scope(client, oauth_provider, non_admin_token):
+    token = non_admin_token
+    info, scopes = await _granted_scopes(client, oauth_provider, token,
+                                         scopes=["skatelab:read", "skatelab:import", "offline_access"])
+    assert info["can_import"] is False
+    assert "skatelab:import" not in scopes and "skatelab:read" in scopes
+
+
+async def test_default_scopes_follow_client_registration(client, oauth_provider, admin_token):
+    """Sans scope demandé : les scopes enregistrés par le client (import inclus s'il l'a demandé)."""
+    info, scopes = await _granted_scopes(client, oauth_provider, admin_token, scopes=[])
+    assert "skatelab:import" in scopes and info["can_import"] is True
+    info, scopes = await _granted_scopes(client, oauth_provider, admin_token, scopes=[],
+                                         reg_scope="skatelab:read offline_access")
+    assert "skatelab:import" not in scopes and info["can_import"] is False
