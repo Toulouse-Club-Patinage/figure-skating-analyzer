@@ -11,7 +11,9 @@ EXPECTED_TOOLS = {
     "get_skater_elements", "get_skater_category_results", "get_skater_seasons", "list_seasons",
     "list_competitions", "get_competition", "get_score_elements", "get_team_scores",
     "club_progression_ranking", "club_benchmarks", "club_element_mastery", "competition_club_analysis",
+    "get_import_job", "import_competitions",
 }
+WRITE_TOOLS = {"import_competitions"}
 
 
 @pytest_asyncio.fixture
@@ -41,7 +43,7 @@ async def test_tools_listed_read_only(mcp_http, oauth_provider, admin_user):
     token = await _token(oauth_provider, admin_user[0])
     tools = (await mcp_call(mcp_http, token, "tools/list"))["tools"]
     assert {t["name"] for t in tools} == EXPECTED_TOOLS
-    assert all(t["annotations"]["readOnlyHint"] is True for t in tools)
+    assert all(t["annotations"]["readOnlyHint"] is (t["name"] not in WRITE_TOOLS) for t in tools)
 
 
 async def test_glossary_resource(mcp_http, oauth_provider, reader_user):

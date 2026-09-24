@@ -32,7 +32,8 @@ from mcp.server.auth.provider import (
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
 SCOPE = "skatelab:read"
-SCOPES_SUPPORTED = [SCOPE, "offline_access"]
+IMPORT_SCOPE = "skatelab:import"  # accordé aux seuls admins, au consentement
+SCOPES_SUPPORTED = [SCOPE, IMPORT_SCOPE, "offline_access"]
 ACCESS_TTL = 3600
 REFRESH_TTL = 30 * 24 * 3600
 REQUEST_TTL = 600
@@ -94,7 +95,8 @@ class SkatelabOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, 
                 redirect_uri_provided_explicitly=params.redirect_uri_provided_explicitly,
                 code_challenge=params.code_challenge,
                 state=params.state,
-                scopes=params.scopes or [SCOPE],
+                # Sans scope demandé : ceux enregistrés par le client (DCR).
+                scopes=params.scopes or (client.scope.split() if client.scope else [SCOPE]),
                 resource=self.resource_url,
                 expires_at=now() + REQUEST_TTL,
             ))

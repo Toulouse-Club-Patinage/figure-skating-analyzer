@@ -1,21 +1,27 @@
-"""Outils MCP (lecture seule, données de compétition).
+"""Outils MCP (données de compétition : lecture, et import pour les admins).
 
-Chaque outil appelle une route GET existante via `api_get` : les droits sont
-ceux de l'application web (un compte skater ne voit que ses patineurs).
+Chaque outil appelle une route existante via `api_get` / `api_post` : les droits
+sont ceux de l'application web (un compte skater ne voit que ses patineurs,
+l'import est réservé aux admins). L'import exige en plus le scope skatelab:import.
 """
 from __future__ import annotations
 
+import ipaddress
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import app.database as db_mod
-from app.mcp.loopback import api_get, current_principal
+from app.mcp.loopback import api_get, api_post, current_principal
+from app.mcp.oauth_provider import IMPORT_SCOPE
 from app.models.user import User
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 READ_ONLY = ToolAnnotations(read_only_hint=True, destructive_hint=False, open_world_hint=False)
+IMPORT = ToolAnnotations(read_only_hint=False, destructive_hint=False, idempotent_hint=True, open_world_hint=True)
+MAX_IMPORT_URLS = 20
 MAX_LIMIT = 200
 DEFAULT_LIMIT = 50
 _UI_ONLY_KEYS = frozenset({"pdf_url", "pdf_path"})
@@ -33,6 +39,24 @@ def _slim(value: Any, drop: frozenset[str] = _UI_ONLY_KEYS) -> Any:
 def _page(rows: list, limit: int, drop: frozenset[str] = _UI_ONLY_KEYS) -> dict:
     limit = max(1, min(limit, MAX_LIMIT))
     return {"total": len(rows), "returned": min(len(rows), limit), "items": _slim(rows[:limit], drop)}
+
+
+def _check_import_url(raw: str) -> str:
+    """URL publique http(s) uniquement : le scraper la téléchargera côté serveur."""
+    url = raw.strip()
+    parts = urlsplit(url)
+    host = (parts.hostname or "").lower()
+    if parts.scheme not in ("http", "https") or not host:
+        raise ToolError(f"URL invalide (http ou https attendu) : {raw}")
+    if host == "localhost" or host.endswith((".localhost", ".local", ".internal")):
+        raise ToolError(f"URL non publique refusée : {raw}")
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return url
+    if not ip.is_global:
+        raise ToolError(f"URL non publique refusée : {raw}")
+    return url
 
 
 def register_tools(server: MCPServer) -> None:
@@ -162,3 +186,26 @@ def register_tools(server: MCPServer) -> None:
         """Analyse des résultats du club sur une compétition (progressions, records)."""
         return _slim(await api_get("/api/stats/competition-club-analysis",
                                    {"competition_id": competition_id, "club": club}))
+
+    @server.tool(annotations=IMPORT)
+    async def import_competitions(urls: list[str], season: str | None = None, discipline: str | None = None,
+                                  enrich: bool = False) -> dict:
+        """Ajoute des compétitions et lance leur import (réservé aux administrateurs).
+
+        `urls` : pages d'index des résultats (FS Manager), 20 au plus. Une URL déjà
+        connue n'est pas dupliquée : son import est relancé. `season` au format
+        2025-2026. enrich=true ajoute l'enrichissement (date de naissance, licence).
+        L'import est asynchrone : suivre chaque tâche avec get_import_job.
+        """
+        if not urls:
+            raise ToolError("Aucune URL fournie.")
+        if len(urls) > MAX_IMPORT_URLS:
+            raise ToolError(f"Trop d'URL : {MAX_IMPORT_URLS} au plus par appel.")
+        body = {"urls": [_check_import_url(u) for u in urls], "enrich": enrich,
+                "season": season or "", "discipline": discipline or ""}
+        return await api_post("/api/competitions/bulk-import", body, scope=IMPORT_SCOPE)
+
+    @server.tool(annotations=READ_ONLY)
+    async def get_import_job(job_id: str) -> dict:
+        """État d'une tâche d'import (queued, running, completed, failed) et son résultat."""
+        return _slim(await api_get(f"/api/jobs/{job_id}"))

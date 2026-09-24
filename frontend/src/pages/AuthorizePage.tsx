@@ -63,10 +63,17 @@ export default function AuthorizePage() {
           <p className="text-sm text-on-surface-variant">Chargement…</p>
         ) : (
           <>
-            <p className="text-sm text-on-surface mb-4">
-              <span className="font-bold">{info.client_name}</span> demande un accès en{" "}
-              <span className="font-bold">lecture seule</span> {scopeText}.
-            </p>
+            {info.can_import ? (
+              <p className="text-sm text-on-surface mb-4">
+                <span className="font-bold">{info.client_name}</span> demande un accès en lecture {scopeText},
+                ainsi que le droit d'<span className="font-bold">ajouter et importer des compétitions</span>.
+              </p>
+            ) : (
+              <p className="text-sm text-on-surface mb-4">
+                <span className="font-bold">{info.client_name}</span> demande un accès en{" "}
+                <span className="font-bold">lecture seule</span> {scopeText}.
+              </p>
+            )}
             <div className="bg-surface-container rounded-lg p-4 text-xs text-on-surface-variant space-y-1 mb-4">
               <p>Connecté en tant que <span className="text-on-surface font-semibold">{user.display_name}</span></p>
               <p>Redirection vers <span className="font-mono text-on-surface">{info.redirect_host}</span></p>

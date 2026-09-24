@@ -16,7 +16,9 @@ INSTRUCTIONS = (
     "Données de compétition de patinage artistique du club (SkateLab) : patineurs, "
     "scores par segment, éléments et GOE, composantes (PCS), résultats par catégorie, "
     "statistiques du club. Lisez la ressource skatelab://glossaire pour le vocabulaire. "
-    "Commencez par whoami : un compte « skater » ne voit que ses patineurs rattachés."
+    "Commencez par whoami : un compte « skater » ne voit que ses patineurs rattachés. "
+    "Les administrateurs peuvent aussi ajouter des compétitions à importer "
+    "(import_competitions, puis get_import_job pour suivre l'import)."
 )
 TOKEN_AUTH_METHODS = ["none", "client_secret_post", "client_secret_basic"]
 

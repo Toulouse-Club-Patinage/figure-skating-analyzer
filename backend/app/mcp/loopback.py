@@ -1,7 +1,8 @@
-"""Appels in-process aux routes GET existantes, au nom de l'utilisateur du jeton MCP.
+"""Appels in-process aux routes existantes, au nom de l'utilisateur du jeton MCP.
 
 Chaque outil passe par ici : les règles d'accès des routes (skater rattaché,
-reject_skater_role…) s'appliquent donc telles quelles, sans duplication.
+reject_skater_role, require_admin…) s'appliquent donc telles quelles, sans
+duplication. Les écritures exigent en plus le scope OAuth correspondant.
 """
 from __future__ import annotations
 
@@ -32,6 +33,12 @@ ALLOWED_PATHS = tuple(re.compile(p) for p in (
     r"^/api/competitions/\d+/team-scores$",
     r"^/api/scores/\d+/elements$",
     r"^/api/stats/(progression-ranking|benchmarks|element-mastery|competition-club-analysis)$",
+    r"^/api/jobs/[0-9a-f]{12}$",
+))
+
+# Écritures : liste blanche distincte, POST uniquement.
+ALLOWED_WRITE_PATHS = tuple(re.compile(p) for p in (
+    r"^/api/competitions/bulk-import$",
 ))
 
 
@@ -45,25 +52,50 @@ def current_principal() -> tuple[str, str]:
     return token.subject, role
 
 
+def require_scope(scope: str) -> None:
+    token = get_access_token()
+    if token is None or scope not in token.scopes:
+        raise ToolError(f"Cette connexion n'a pas l'autorisation « {scope} ». Déconnectez puis "
+                        "reconnectez SkateLab dans Claude pour l'accorder (compte administrateur requis).")
+
+
 def is_allowed_path(path: str) -> bool:
     return any(p.fullmatch(path) for p in ALLOWED_PATHS)
+
+
+def is_allowed_write_path(path: str) -> bool:
+    return any(p.fullmatch(path) for p in ALLOWED_WRITE_PATHS)
 
 
 async def api_get(path: str, params: dict | None = None) -> Any:
     if not is_allowed_path(path):
         raise ToolError(f"Route non autorisée : {path}")
+    query = {k: v for k, v in (params or {}).items() if v is not None}
+    return await _call("GET", path, params=query)
+
+
+async def api_post(path: str, body: dict, *, scope: str) -> Any:
+    if not is_allowed_write_path(path):
+        raise ToolError(f"Route non autorisée : {path}")
+    require_scope(scope)
+    return await _call("POST", path, json=body)
+
+
+async def _call(method: str, path: str, *, params: dict | None = None, json: dict | None = None) -> Any:
     from app.main import litestar_app  # import tardif : app.main importe ce module
 
     user_id, role = current_principal()
     jwt = create_access_token(user_id=user_id, role=role, expires_seconds=LOOPBACK_JWT_TTL)
-    query = {k: v for k, v in (params or {}).items() if v is not None}
     started = time.monotonic()
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=litestar_app),
                                  base_url="http://skatelab.internal") as http:
-        response = await http.get(path, params=query, headers={"Authorization": f"Bearer {jwt}"})
-    logger.info("mcp user=%s role=%s GET %s %s -> %s (%.0f ms)", user_id, role, path, query,
-                response.status_code, (time.monotonic() - started) * 1000)
+        response = await http.request(method, path, params=params, json=json,
+                                      headers={"Authorization": f"Bearer {jwt}"})
+    logger.info("mcp user=%s role=%s %s %s %s -> %s (%.0f ms)", user_id, role, method, path,
+                params or json, response.status_code, (time.monotonic() - started) * 1000)
     if response.status_code == 403:
+        if method != "GET" or path.startswith("/api/jobs/"):
+            raise ToolError("Accès refusé : action réservée aux administrateurs du club.")
         raise ToolError("Accès refusé : ces données ne sont pas visibles avec votre compte "
                         "(réservé à l'encadrement du club ou à d'autres patineurs).")
     if response.status_code == 404:

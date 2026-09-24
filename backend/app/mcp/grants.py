@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.mcp.oauth_provider import CODE_TTL, hash_secret, now, revoke_family
+from app.mcp.oauth_provider import CODE_TTL, IMPORT_SCOPE, hash_secret, now, revoke_family
 from app.models.oauth import OAuthAuthRequest, OAuthClient, OAuthToken
 from app.models.user import User
 from mcp.server.auth.provider import construct_redirect_uri
@@ -26,6 +26,10 @@ async def get_pending_request(session: AsyncSession, request_id: str) -> OAuthAu
     return req
 
 
+def can_import(req: OAuthAuthRequest, role: str) -> bool:
+    return role == "admin" and IMPORT_SCOPE in req.scopes
+
+
 async def decide(session: AsyncSession, request_id: str, user: User, approve: bool) -> str:
     req = await get_pending_request(session, request_id)
     if req is None:
@@ -39,6 +43,8 @@ async def decide(session: AsyncSession, request_id: str, user: User, approve: bo
         return url
     if user.must_change_password:
         raise ConsentError("must_change_password")
+    if not can_import(req, user.role):
+        req.scopes = [s for s in req.scopes if s != IMPORT_SCOPE]
     code = secrets.token_urlsafe(32)
     req.user_id = user.id
     req.code_hash = hash_secret(code)
