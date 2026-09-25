@@ -1,3 +1,9 @@
+- name: "CSNPA 2026-2027"
+  season: "2026-2027"
+  urls:
+    - https://ligue-des-alpes-patinage.org/CSNPA/Saison20262027/MASTERS26/index.htm
+    - https://csnpa.x10.mx/CSNPA/CSNPA_OUVERTURE_2026/index.htm
+
 - name: "ISU 2025-2026"
   season: "2025-2026"
   urls:
@@ -35,6 +41,8 @@
     - https://ligue-des-alpes-patinage.org/CSNPA/Saison20252026/FRANCE_MINIME_2026/index.htm
     - https://csnpa.x10.mx/CSNPA/FRANCE_POUBEN_2026/index.htm
     - https://csnpa.x10.mx/CSNPA/cdf_adults_2026/index.htm
+    - https://ligue-des-alpes-patinage.org/CSNPA/Saison20252026/ROOSTER_2026/index.htm
+    - https://csnpa.x10.mx/CSNPA/FRANCE-CLUB2026/
 
 - name: "Ligue Occitanie 2025-2026"
   season: "2025-2026"
@@ -42,6 +50,8 @@
     - https://ligue-occitanie-sg.com/Resultats/2025-2026/CSNPA-2025-TF-Nimes/index.htm
     - https://ligue-occitanie-sg.com/Resultats/2025-2026/CSNPA-2026-CR-Castres/index.htm
     - https://ligue-occitanie-sg.com/Resultats/2025-2026/CSNPA-2026-CR-Montpellier/index.htm
+    - https://ligue-occitanie-sg.com/Resultats/2025-2026/CSNPA-2026-CR-FontRomeu/index.htm
+    - https://ligue-occitanie-sg.com/Resultats/2025-2026/CSNPA-2026-CR-Narbonne
 
 - name: "Ligue Nouvelle-Aquitaine 2025-2026"
   season: "2025-2026"
@@ -67,7 +77,7 @@
   urls:
     - https://lchampionpaca.sos-ordi91.fr/2025_2026/tf_brian%c3%a7on_2025/
     - https://lchampionpaca.sos-ordi91.fr/2025_2026/CR_Gap_2025/
-    - hhttps://lchampionpaca.sos-ordi91.fr/2025_2026/TF_Gap_2025/
+    - https://lchampionpaca.sos-ordi91.fr/2025_2026/TF_Gap_2025/
     - https://lchampionpaca.sos-ordi91.fr/2025_2026/CR_Toulon/
     - https://lchampionpaca.sos-ordi91.fr/2025_2026/cr_marseille_2026/
     - https://lchampionpaca.sos-ordi91.fr/2025_2026/CR_BRIANCON_2026/
@@ -77,6 +87,11 @@
   urls:
     - https://resultatscmpt.great-site.net/Saison%202025-2026/TF-Tours-2025/index.htm
     - https://resultatscmpt.great-site.net/Saison%202025-2026/Chateaux_2026/index.htm
+
+- name: "Ligue Île-de-France 2025-2026"
+  season: "2025-2026"
+  urls:
+    - https://ligue-sports-de-glace-idf.org/documents/competitions/2025-2026/LakesTrophy2026/index.htm
 
 - name: "CSNPA 2024-2025"
   season: "2024-2025"
