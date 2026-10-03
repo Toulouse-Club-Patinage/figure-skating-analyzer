@@ -33,6 +33,8 @@ from app.routes.notifications import router as notifications_router
 from app.routes.team_scores import router as team_scores_router
 from app.routes.program_builder import router as program_builder_router
 from app.routes.oauth import router as oauth_router
+from app.routes.backups import router as backups_router
+from app.services.backup.service import backup_loop
 from app.mcp.dispatcher import McpDispatcher
 from app.mcp.server import create_mcp_app
 from app.mcp.grants import purge_stale
@@ -99,14 +101,16 @@ async def lifespan(_: Litestar) -> AsyncGenerator[None, None]:
     job_queue.set_handler(_handle_job)
     await job_queue.start_worker()
     polling_task = asyncio.create_task(_polling_loop())
+    backup_task = asyncio.create_task(backup_loop())
     try:
         yield
     finally:
-        polling_task.cancel()
-        try:
-            await polling_task
-        except asyncio.CancelledError:
-            pass
+        for task in (polling_task, backup_task):
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
         await job_queue.stop_worker()
 
 
@@ -174,6 +178,7 @@ litestar_app = Litestar(
         team_scores_router,
         program_builder_router,
         oauth_router,
+        backups_router,
     ],
     cors_config=cors_config,
     lifespan=[lifespan, mcp_lifespan],

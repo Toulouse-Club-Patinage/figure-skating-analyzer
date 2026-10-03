@@ -55,12 +55,13 @@ cd backend && uv lock
 - **Job queue**: `services/job_queue.py` — in-process async queue for import/reimport/enrich jobs. Routes submit jobs, lifespan worker processes them
 - **Import pipeline**: URL → `scraper_factory.py` selects scraper → scraper fetches HTML + PDFs → `parser.py` extracts scores → stored in DB. Scrapers in `services/scrapers/` extend `BaseScraper` (ABC)
 - **Demande de compte**: formulaire public (`/request-account`) → `services/account_request.py` vérifie la licence contre le cache French Ranking (`services/french_ranking/`, TTL 1h, portage depuis `ligue-app-competitions`) → compte `skater` créé automatiquement + mot de passe temporaire (7 j) par email. Réponse HTTP toujours neutre (pas d'oracle d'énumération). Cas ambigus routés vers validation admin.
+- **Sauvegardes** : `services/backup/` — archives `tar.gz` (base SQLite via l'API backup + logos + manifest) dans `BACKUP_DIR`, tick de 60 s lancé par le lifespan (heure/rétention/activation dans `AppSettings.auto_backup_*`, désactivé par défaut), routes `/api/admin/backups`. Restauration in-place par nom de colonne (une archive antérieure à un ajout de colonne reste restaurable ; n'incrémenter `manifest.SCHEMA_VERSION` que pour un changement incompatible). Sauvegarde de sécurité automatique avant réinitialisation et restauration.
 - **PDF reports**: `services/report_data.py` + `templates/reports/` (Jinja2 + WeasyPrint)
 - **MCP** : `app/mcp/` — serveur MCP OAuth (SDK `mcp` 2.x). `app.main:app` est un dispatcher ASGI (`McpDispatcher`) : `/mcp`, `/authorize`, `/token`, `/register`, `/revoke`, `/.well-known/oauth-*` → app Starlette du SDK ; le reste → `litestar_app`. Les outils appellent les routes en in-process (`loopback.api_get` / `api_post`, listes blanches distinctes) avec un JWT de 60 s : les droits sont ceux des routes. Écriture : seul `import_competitions` (→ `POST /api/competitions/bulk-import`, admin), qui exige en plus le scope `skatelab:import` — retiré au consentement pour tout rôle non admin. `PUBLIC_BASE_URL` = issuer.
 
 **Models**: Competition, Skater, Score, CategoryResult, User, UserSkater, AllowedDomain, AppSettings, AccountRequest, FrenchRankingEntry, OAuthClient, OAuthAuthRequest, OAuthToken
 
-**Routes** (all under `/api`): auth, competitions, skaters, scores, dashboard, stats, reports, users, admin, domains, club_config, jobs, me, oauth
+**Routes** (all under `/api`): auth, competitions, skaters, scores, dashboard, stats, reports, users, admin, backups, domains, club_config, jobs, me, oauth
 
 ### Frontend (React + TypeScript + Vite + Tailwind CSS)
 

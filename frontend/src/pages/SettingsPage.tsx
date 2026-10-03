@@ -6,6 +6,7 @@ import { countryFlag } from "../utils/countryFlags";
 import { useJobs, type Lot } from "../contexts/JobContext";
 import AdminJobsTab from "../components/AdminJobsTab";
 import MediansModal from "../components/MediansModal";
+import BackupSettingsSection from "../components/BackupSettingsSection";
 
 const REQUEST_STATUS_LABELS: Record<string, string> = {
   created: "Compte créé",
@@ -1406,6 +1407,8 @@ export default function SettingsPage() {
         />
       )}
 
+      <BackupSettingsSection />
+
       {/* Maintenance */}
       <section className="rounded-2xl p-6 shadow-arctic bg-surface-container-lowest">
         <h2 className="font-headline font-bold text-on-surface text-lg mb-2">
@@ -1443,7 +1446,8 @@ export default function SettingsPage() {
           Zone de danger
         </h2>
         <p className="text-on-surface-variant text-xs mb-4">
-          Ces actions sont irréversibles. Toutes les données seront supprimées.
+          Ces actions suppriment toutes les données. Une sauvegarde de l'état actuel est faite juste
+          avant (section Sauvegardes).
         </p>
         <button
           onClick={() => setShowResetConfirm(true)}

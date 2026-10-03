@@ -24,6 +24,11 @@ services:
     # Le backend n'a pas à être joignable depuis l'extérieur : `frontend`
     # (nginx) l'atteint par le réseau interne du stack.
     ports: !reset []
+    # Archives de sauvegarde (BACKUP_DIR=/data/backups par défaut) visibles sur
+    # l'hôte, hors du volume Docker : copiables / récupérables sans passer par
+    # le conteneur. `var/backups` est créé par deploy/install-app.sh.
+    volumes:
+      - ./var/backups:/data/backups
 
   frontend:
     # Nom de conteneur figé : le routeur de bordure route dessus.

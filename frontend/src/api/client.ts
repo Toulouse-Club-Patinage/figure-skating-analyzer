@@ -947,6 +947,30 @@ export interface AccountRequestSummary {
 
 // --- API Functions ---
 
+export interface BackupSettings {
+  enabled: boolean;
+  time: string;
+  retention: number;
+  last_run_at: string | null;
+  last_status: "ok" | "error" | null;
+  last_error: string | null;
+}
+
+export interface BackupArchive {
+  name: string;
+  kind: "auto" | "manuel" | "avant-reinit" | "avant-restauration" | string;
+  size: number;
+  created_at: string;
+}
+
+export interface BackupStatus {
+  available: boolean;
+  directory: string;
+  timezone: string;
+  settings: BackupSettings;
+  archives: BackupArchive[];
+}
+
 export const api = {
   config: {
     get: () => request<ConfigResponse>("/config/"),
@@ -1183,7 +1207,37 @@ export const api = {
 
   admin: {
     resetDatabase: () =>
-      request<{ status: string; message: string }>("/admin/reset-database", { method: "POST" }),
+      request<{ status: string; message: string; safety_backup: string | null }>("/admin/reset-database", { method: "POST" }),
+    backups: {
+      status: () => request<BackupStatus>("/admin/backups/"),
+      updateSettings: (data: Partial<Pick<BackupSettings, "enabled" | "time" | "retention">>) =>
+        request<BackupSettings>("/admin/backups/settings", {
+          method: "PATCH",
+          body: JSON.stringify(data),
+        }),
+      run: () => request<BackupArchive>("/admin/backups/run", { method: "POST" }),
+      download: (name: string) =>
+        downloadPdf(`/admin/backups/${encodeURIComponent(name)}/download`, name),
+      restore: (name: string) =>
+        request<{ status: string; safety_backup: BackupArchive }>(
+          `/admin/backups/${encodeURIComponent(name)}/restore`,
+          { method: "POST" },
+        ),
+      restoreUpload: async (file: File): Promise<{ status: string; safety_backup: BackupArchive }> => {
+        const form = new FormData();
+        form.append("data", file);
+        const headers: Record<string, string> = {};
+        if (_accessToken) headers["Authorization"] = `Bearer ${_accessToken}`;
+        const res = await fetch(`${BASE}/admin/backups/restore-upload`, {
+          method: "POST",
+          headers,
+          body: form,
+          credentials: "include",
+        });
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}: ${await res.text()}`);
+        return res.json();
+      },
+    },
     recalculateClubs: () =>
       request<{ status: string; skaters_updated: number }>("/admin/recalculate-clubs", { method: "POST" }),
     accountRequests: {
