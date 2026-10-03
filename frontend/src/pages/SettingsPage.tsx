@@ -7,14 +7,9 @@ import { useJobs, type Lot } from "../contexts/JobContext";
 import AdminJobsTab from "../components/AdminJobsTab";
 import MediansModal from "../components/MediansModal";
 import BackupSettingsSection from "../components/BackupSettingsSection";
-
-const REQUEST_STATUS_LABELS: Record<string, string> = {
-  created: "Compte créé",
-  already_linked: "Déjà rattaché",
-  pending_admin: "En attente de validation",
-  rejected: "Refusée",
-  expired: "Expirée",
-};
+import AccountRequestsHistoryModal, {
+  REQUEST_STATUS_LABELS,
+} from "../components/AccountRequestsHistoryModal";
 
 const inputCls =
   "w-full px-3 py-2 bg-surface-container-low rounded-xl text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary";
@@ -537,6 +532,25 @@ export default function SettingsPage() {
       qc.invalidateQueries({ queryKey: ["users"] });
     },
   });
+
+  const [showRequestsHistory, setShowRequestsHistory] = useState(false);
+
+  const invalidateAccountRequests = () => {
+    qc.invalidateQueries({ queryKey: ["account-requests"] });
+    qc.invalidateQueries({ queryKey: ["account-requests-history"] });
+  };
+
+  const archiveRequest = useMutation({
+    mutationFn: (id: number) => api.admin.accountRequests.archive(id),
+    onSuccess: invalidateAccountRequests,
+  });
+
+  const archiveAllRequests = useMutation({
+    mutationFn: () => api.admin.accountRequests.archiveAll(),
+    onSuccess: invalidateAccountRequests,
+  });
+
+  const archivableCount = accountRequests.filter((r) => r.status !== "pending_admin").length;
 
   const [smtpTestResult, setSmtpTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const smtpTestMutation = useMutation({
@@ -1282,9 +1296,33 @@ export default function SettingsPage() {
           )}
         </div>
 
-        <h3 className="font-headline font-bold text-on-surface text-sm mt-6 mb-2">
-          Demandes reçues
-        </h3>
+        <div className="flex flex-wrap items-center justify-between gap-2 mt-6 mb-2">
+          <h3 className="font-headline font-bold text-on-surface text-sm">Demandes reçues</h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowRequestsHistory(true)}
+              className="px-3 py-1.5 bg-surface-container text-on-surface rounded-xl text-xs font-bold hover:bg-surface-container-high transition-colors flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-sm">history</span>
+              Historique
+            </button>
+            <button
+              onClick={() => {
+                if (
+                  confirm(
+                    `Archiver ${archivableCount} demande(s) traitée(s) ? Les demandes en attente de validation restent affichées.`,
+                  )
+                )
+                  archiveAllRequests.mutate();
+              }}
+              disabled={archivableCount === 0 || archiveAllRequests.isPending}
+              className="px-3 py-1.5 bg-surface-container text-on-surface rounded-xl text-xs font-bold hover:bg-surface-container-high transition-colors flex items-center gap-1 disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-sm">archive</span>
+              Tout archiver
+            </button>
+          </div>
+        </div>
         {accountRequests.length === 0 ? (
           <p className="text-on-surface-variant text-xs">Aucune demande pour le moment.</p>
         ) : (
@@ -1306,9 +1344,26 @@ export default function SettingsPage() {
                       </p>
                     )}
                   </div>
-                  <span className="text-xs font-semibold text-on-surface-variant">
-                    {REQUEST_STATUS_LABELS[req.status] ?? req.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-on-surface-variant">
+                      {REQUEST_STATUS_LABELS[req.status] ?? req.status}
+                    </span>
+                    <button
+                      onClick={() => {
+                        if (
+                          req.status !== "pending_admin" ||
+                          confirm("Cette demande attend encore une validation. L'archiver quand même ?")
+                        )
+                          archiveRequest.mutate(req.id);
+                      }}
+                      disabled={archiveRequest.isPending}
+                      title="Archiver"
+                      aria-label="Archiver la demande"
+                      className="text-on-surface-variant hover:text-on-surface transition-colors p-1 rounded-lg hover:bg-surface-container-high disabled:opacity-50"
+                    >
+                      <span className="material-symbols-outlined text-base">archive</span>
+                    </button>
+                  </div>
                 </div>
 
                 {req.reject_reason && (
@@ -1396,6 +1451,10 @@ export default function SettingsPage() {
           </div>
         )}
       </section>
+
+      {showRequestsHistory && (
+        <AccountRequestsHistoryModal onClose={() => setShowRequestsHistory(false)} />
+      )}
 
       {showMediansModal && defaultMediansData && (
         <MediansModal

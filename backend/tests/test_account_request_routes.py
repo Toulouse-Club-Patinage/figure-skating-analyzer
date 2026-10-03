@@ -295,3 +295,96 @@ async def test_login_reste_refuse_apres_expiration_du_mot_de_passe_temporaire(cl
     payload = {"email": "perime-bis@exemple.fr", "password": "Temporaire123"}
     assert (await client.post("/api/auth/login", json=payload)).status_code == 401
     assert (await client.post("/api/auth/login", json=payload)).status_code == 401
+
+
+async def _seed_requests(db_session):
+    reqs = [
+        AccountRequest(
+            email=f"parent{i}@exemple.fr",
+            display_name=f"Parent {i}",
+            licence_numbers=[str(100000 + i)],
+            status=status,
+        )
+        for i, status in enumerate(["created", "rejected", "pending_admin"])
+    ]
+    db_session.add_all(reqs)
+    await db_session.commit()
+    return reqs
+
+
+async def test_archivage_individuel_retire_la_demande_de_la_liste(
+    client, db_session, admin_token
+):
+    await _seed(db_session)
+    created, _, _ = await _seed_requests(db_session)
+    headers = {"Authorization": f"Bearer {admin_token}"}
+
+    resp = await client.post(
+        f"/api/admin/account-requests/{created.id}/archive", headers=headers
+    )
+    assert resp.status_code == 200
+    assert resp.json()["archived_at"] is not None
+
+    current = (await client.get("/api/admin/account-requests", headers=headers)).json()
+    assert created.id not in [r["id"] for r in current]
+    assert len(current) == 2
+
+    history = (
+        await client.get(
+            "/api/admin/account-requests?include_archived=true", headers=headers
+        )
+    ).json()
+    assert len(history) == 3
+    archived = next(r for r in history if r["id"] == created.id)
+    assert archived["archived_at"] is not None
+
+
+async def test_desarchivage_remet_la_demande_dans_la_liste(client, db_session, admin_token):
+    await _seed(db_session)
+    created, _, _ = await _seed_requests(db_session)
+    headers = {"Authorization": f"Bearer {admin_token}"}
+
+    await client.post(f"/api/admin/account-requests/{created.id}/archive", headers=headers)
+    resp = await client.post(
+        f"/api/admin/account-requests/{created.id}/unarchive", headers=headers
+    )
+    assert resp.status_code == 200
+    assert resp.json()["archived_at"] is None
+
+    current = (await client.get("/api/admin/account-requests", headers=headers)).json()
+    assert created.id in [r["id"] for r in current]
+
+
+async def test_archiver_tout_garde_les_demandes_en_attente(client, db_session, admin_token):
+    await _seed(db_session)
+    _, _, pending = await _seed_requests(db_session)
+    headers = {"Authorization": f"Bearer {admin_token}"}
+
+    resp = await client.post("/api/admin/account-requests/archive-all", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json() == {"archived": 2}
+
+    current = (await client.get("/api/admin/account-requests", headers=headers)).json()
+    assert [r["id"] for r in current] == [pending.id]
+
+
+async def test_archivage_demande_inconnue(client, db_session, admin_token):
+    await _seed(db_session)
+    resp = await client.post(
+        "/api/admin/account-requests/9999/archive",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert resp.status_code == 404
+
+
+async def test_archivage_refuse_aux_non_admins(client, db_session, reader_token):
+    await _seed(db_session)
+    created, _, _ = await _seed_requests(db_session)
+    headers = {"Authorization": f"Bearer {reader_token}"}
+    for path in (
+        f"/api/admin/account-requests/{created.id}/archive",
+        f"/api/admin/account-requests/{created.id}/unarchive",
+        "/api/admin/account-requests/archive-all",
+    ):
+        resp = await client.post(path, headers=headers)
+        assert resp.status_code in (401, 403)

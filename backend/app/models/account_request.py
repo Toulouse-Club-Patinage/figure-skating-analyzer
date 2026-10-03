@@ -2,6 +2,8 @@
 """Trace d'une demande de création de compte : audit et notification admin.
 
 `status` : created | pending_admin | rejected | expired
+`archived_at` : renseigné quand l'admin retire la demande de la liste courante
+(elle reste consultable dans l'historique).
 """
 
 from __future__ import annotations
@@ -30,3 +32,4 @@ class AccountRequest(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow, nullable=False)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
     user_id: Mapped[str | None] = mapped_column(String(36), nullable=True, default=None)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
