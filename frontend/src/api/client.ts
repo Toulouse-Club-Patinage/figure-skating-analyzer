@@ -943,6 +943,7 @@ export interface AccountRequestSummary {
   created_at: string | null;
   resolved_at: string | null;
   user_id: string | null;
+  archived_at: string | null;
 }
 
 // --- API Functions ---
@@ -1242,6 +1243,18 @@ export const api = {
       request<{ status: string; skaters_updated: number }>("/admin/recalculate-clubs", { method: "POST" }),
     accountRequests: {
       list: () => request<AccountRequestSummary[]>("/admin/account-requests"),
+      history: () =>
+        request<AccountRequestSummary[]>("/admin/account-requests?include_archived=true"),
+      archive: (requestId: number) =>
+        request<AccountRequestSummary>(`/admin/account-requests/${requestId}/archive`, {
+          method: "POST",
+        }),
+      unarchive: (requestId: number) =>
+        request<AccountRequestSummary>(`/admin/account-requests/${requestId}/unarchive`, {
+          method: "POST",
+        }),
+      archiveAll: () =>
+        request<{ archived: number }>("/admin/account-requests/archive-all", { method: "POST" }),
       approve: (requestId: number, skaterIds: number[]) =>
         request<{ detail: string; user_id: string }>(`/admin/account-requests/${requestId}/approve`, {
           method: "POST",

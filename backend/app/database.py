@@ -82,6 +82,7 @@ async def _migrate_add_columns(conn) -> None:
         ("app_settings", "auto_backup_last_run_at", "VARCHAR(40)"),
         ("app_settings", "auto_backup_last_status", "VARCHAR(10)"),
         ("app_settings", "auto_backup_last_error", "TEXT"),
+        ("account_requests", "archived_at", "DATETIME"),
     ]
     for table, column, col_type in _MIGRATIONS:
         try:

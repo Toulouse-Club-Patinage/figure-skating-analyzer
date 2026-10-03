@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from litestar import Router, Response, get, post, Request
 from litestar.di import Provide
 from litestar.exceptions import ClientException, NotFoundException
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.guards import require_admin
@@ -95,28 +95,82 @@ async def recalculate_clubs(request: Request, session: AsyncSession) -> dict:
     return {"status": "ok", "skaters_updated": updated}
 
 
+def _serialize_account_request(r: AccountRequest) -> dict:
+    return {
+        "id": r.id,
+        "email": r.email,
+        "display_name": r.display_name,
+        "licence_numbers": r.licence_numbers,
+        "status": r.status,
+        "reject_reason": r.reject_reason,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "resolved_at": r.resolved_at.isoformat() if r.resolved_at else None,
+        "user_id": r.user_id,
+        "archived_at": r.archived_at.isoformat() if r.archived_at else None,
+    }
+
+
 @get("/account-requests")
-async def list_account_requests(request: Request, session: AsyncSession) -> list[dict]:
+async def list_account_requests(
+    request: Request, session: AsyncSession, include_archived: bool = False
+) -> list[dict]:
+    """Demandes non archivées ; `include_archived=true` renvoie tout l'historique."""
     require_admin(request)
-    rows = (
-        (await session.execute(select(AccountRequest).order_by(AccountRequest.created_at.desc())))
-        .scalars()
-        .all()
+    query = select(AccountRequest).order_by(AccountRequest.created_at.desc())
+    if not include_archived:
+        query = query.where(AccountRequest.archived_at.is_(None))
+    rows = (await session.execute(query)).scalars().all()
+    return [_serialize_account_request(r) for r in rows]
+
+
+async def _get_account_request(session: AsyncSession, request_id: int) -> AccountRequest:
+    req = (
+        await session.execute(select(AccountRequest).where(AccountRequest.id == request_id))
+    ).scalar_one_or_none()
+    if req is None:
+        raise NotFoundException("Demande introuvable")
+    return req
+
+
+@post("/account-requests/{request_id:int}/archive", status_code=200)
+async def archive_account_request(
+    request_id: int, request: Request, session: AsyncSession
+) -> dict:
+    require_admin(request)
+    req = await _get_account_request(session, request_id)
+    if req.archived_at is None:
+        req.archived_at = datetime.now(timezone.utc)
+        await session.commit()
+    return _serialize_account_request(req)
+
+
+@post("/account-requests/{request_id:int}/unarchive", status_code=200)
+async def unarchive_account_request(
+    request_id: int, request: Request, session: AsyncSession
+) -> dict:
+    require_admin(request)
+    req = await _get_account_request(session, request_id)
+    if req.archived_at is not None:
+        req.archived_at = None
+        await session.commit()
+    return _serialize_account_request(req)
+
+
+@post("/account-requests/archive-all", status_code=200)
+async def archive_all_account_requests(request: Request, session: AsyncSession) -> dict:
+    """Archive toutes les demandes traitées. Celles qui attendent une validation
+    admin restent visibles : les archiver en masse les ferait oublier."""
+    require_admin(request)
+    result = await session.execute(
+        update(AccountRequest)
+        .where(
+            AccountRequest.archived_at.is_(None),
+            AccountRequest.status != "pending_admin",
+        )
+        .values(archived_at=datetime.now(timezone.utc))
     )
-    return [
-        {
-            "id": r.id,
-            "email": r.email,
-            "display_name": r.display_name,
-            "licence_numbers": r.licence_numbers,
-            "status": r.status,
-            "reject_reason": r.reject_reason,
-            "created_at": r.created_at.isoformat() if r.created_at else None,
-            "resolved_at": r.resolved_at.isoformat() if r.resolved_at else None,
-            "user_id": r.user_id,
-        }
-        for r in rows
-    ]
+    await session.commit()
+    return {"archived": result.rowcount}
 
 
 @post("/account-requests/{request_id:int}/approve")
@@ -241,6 +295,9 @@ router = Router(
         recalculate_clubs,
         list_account_requests,
         approve_account_request,
+        archive_account_request,
+        unarchive_account_request,
+        archive_all_account_requests,
     ],
     dependencies={"session": Provide(get_session)},
 )
