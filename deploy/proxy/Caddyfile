@@ -45,14 +45,14 @@
 	redir https://{$LIGUE_DOMAIN}{uri} permanent
 }
 
-# --- SkateLab — INACTIF -----------------------------------------------
-# L'application est encore servie par GCP ; elle n'est pas déployée sur ce
-# VPS. Laisser ce bloc actif ferait tenter à Caddy une émission ACME pour
-# un domaine qu'il ne sert pas, consommant le quota Let's Encrypt
-# (5 échecs par domaine et par heure).
-# Décommenter au moment de la bascule GCP → VPS.
-#
-# {$SKATELAB_DOMAIN} {
-# 	encode gzip
-# 	reverse_proxy skatelab-frontend:80
-# }
+# --- SkateLab ----------------------------------------------------------
+# Servi par ce VPS depuis la bascule GCP → VPS (2026-08-30). Le nginx
+# interne de l'app (nginx.conf du dépôt SkateLab) porte ses propres règles :
+# SPA, MCP en streaming, et 110 Mo sur l'envoi d'une archive de sauvegarde
+# à restaurer. Contrairement à Ligue, aucun `request_body` ici : Caddy
+# n'impose pas de limite de corps par défaut, c'est le nginx interne qui
+# filtre.
+{$SKATELAB_DOMAIN} {
+	encode gzip
+	reverse_proxy skatelab-frontend:80
+}
