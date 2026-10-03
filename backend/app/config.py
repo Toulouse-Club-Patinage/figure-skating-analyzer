@@ -14,6 +14,26 @@ DATABASE_URL = os.environ.get(
     f"sqlite+aiosqlite:///{DATA_DIR / 'skating.db'}",
 )
 
+
+def _sqlite_path(url: str) -> Path | None:
+    """Chemin du fichier SQLite de `url`, None hors SQLite fichier (Postgres,
+    :memory:) — la sauvegarde automatique est alors désactivée."""
+    prefix = url.split("://", 1)
+    if len(prefix) != 2 or not prefix[0].startswith("sqlite"):
+        return None
+    path = prefix[1][1:] if prefix[1].startswith("/") else prefix[1]
+    if not path or path == ":memory:":
+        return None
+    return Path(path.split("?", 1)[0])
+
+
+DB_PATH = _sqlite_path(DATABASE_URL)
+
+# Sauvegardes : dossier fixé par l'environnement (jamais par l'UI), heure de
+# déclenchement interprétée dans ce fuseau (le conteneur tourne en UTC).
+BACKUP_DIR = Path(os.environ.get("BACKUP_DIR", str(DATA_DIR / "backups")))
+BACKUP_TIMEZONE = os.environ.get("BACKUP_TIMEZONE", "Europe/Paris")
+
 # Auth
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-me")
 SECURE_COOKIES = os.environ.get("SECURE_COOKIES", "true").lower() == "true"

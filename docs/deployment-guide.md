@@ -272,25 +272,43 @@ Caddy obtient automatiquement un certificat SSL pour votre domaine. Assurez-vous
 
 #### Sauvegarder la base de donnees
 
+L'application sauvegarde elle-meme sa base : **Reglages > General > Sauvegardes**.
+
+- **Sauvegarde quotidienne** : desactivee par defaut, a activer apres le premier
+  deploiement. Heure interpretee dans `BACKUP_TIMEZONE` (Europe/Paris par defaut).
+  Si le serveur etait arrete a l'heure prevue, la sauvegarde est rattrapee au
+  redemarrage.
+- **Archives** `skatelab-AAAAMMJJ-HHMMSS-<type>.tar.gz` (base SQLite + logo + manifest),
+  ecrites dans `BACKUP_DIR` (`/data/backups` par defaut). Types : `auto`, `manuel`,
+  `avant-reinit` et `avant-restauration` (filets de securite pris automatiquement
+  avant une reinitialisation ou une restauration). La retention garde les N plus
+  recentes de chaque type.
+- Les PDF de resultats (`/data/pdfs`) ne sont pas sauvegardes : un re-import les
+  retelecharge.
+
+Sur le VPS, `deploy/compose.vps.yml` monte `./var/backups` sur `/data/backups` : les
+archives sont lisibles directement sur l'hote (copie hors serveur : `scp`, `rsync`).
+
+Sauvegarde ponctuelle en ligne de commande (sans passer par l'ecran) :
+
 ```bash
-cd /opt/skating-analyzer
-docker compose exec backend sqlite3 /data/skating.db ".backup '/data/backup.db'"
-cp "$(docker compose exec backend cat /data/backup.db)" ./backup_$(date +%Y%m%d).db
+docker compose exec backend sqlite3 /data/skating.db ".backup '/data/backups/manuel.db'"
 ```
 
-Methode alternative avec un dump SQL :
+#### Restaurer une sauvegarde
 
-```bash
-docker compose exec backend sqlite3 /data/skating.db .dump > backup_$(date +%Y%m%d).sql
-```
+Depuis **Reglages > Sauvegardes** : bouton « Restaurer » sur une archive du serveur,
+ou « Restaurer depuis un fichier » pour une archive telechargee (100 Mo max). La
+restauration :
 
-Planifiez une sauvegarde automatique avec cron :
+1. est refusee si un import est en cours ;
+2. sauvegarde d'abord l'etat courant (archive `avant-restauration`) ;
+3. remplace le contenu de la base table par table, dans une transaction (en cas
+   d'echec, la base reste intacte). Une archive anterieure a l'ajout d'une colonne
+   reste restaurable ; une archive d'une version plus recente de SkateLab est refusee.
 
-```bash
-# Sauvegarder tous les jours a 3h du matin
-sudo mkdir -p /opt/backups
-echo "0 3 * * * cd /opt/skating-analyzer && docker compose exec -T backend sqlite3 /data/skating.db .dump > /opt/backups/skating_\$(date +\%Y\%m\%d).sql" | sudo crontab -
-```
+Les reglages de sauvegarde eux-memes ne sont pas restaures (ils decrivent le serveur,
+pas l'archive).
 
 #### Mettre a jour l'application
 

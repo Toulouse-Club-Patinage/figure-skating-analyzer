@@ -23,6 +23,18 @@ def event_loop():
     loop.close()
 
 
+@pytest.fixture(autouse=True)
+def _isolate_backups(tmp_path, monkeypatch):
+    """Aucun test ne doit sauvegarder (ni restaurer !) la vraie base de dev :
+    sauvegarde désactivée par défaut, dossier de sauvegarde temporaire.
+    Les tests de sauvegarde posent leur propre `config.DB_PATH`."""
+    from app import config
+
+    monkeypatch.setattr(config, "DB_PATH", None)
+    monkeypatch.setattr(config, "BACKUP_DIR", tmp_path / "backups")
+    monkeypatch.setattr(config, "LOGOS_DIR", tmp_path / "logos")
+
+
 @pytest_asyncio.fixture
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     # Import all models so metadata is populated

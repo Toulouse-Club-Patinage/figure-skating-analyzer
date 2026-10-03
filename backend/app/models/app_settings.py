@@ -32,3 +32,17 @@ class AppSettings(Base):
     )
     french_ranking_club_names: Mapped[list | None] = mapped_column(JSON, nullable=True)
     support_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Sauvegarde automatique (cf. app/services/backup). Le dossier n'est PAS ici :
+    # il vient de BACKUP_DIR (environnement), jamais de l'UI.
+    auto_backup_enabled: Mapped[bool] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    auto_backup_time: Mapped[str] = mapped_column(
+        String(5), nullable=False, default="03:00", server_default="03:00"
+    )
+    auto_backup_retention: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=14, server_default="14"
+    )
+    auto_backup_last_run_at: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    auto_backup_last_status: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    auto_backup_last_error: Mapped[str | None] = mapped_column(Text, nullable=True)

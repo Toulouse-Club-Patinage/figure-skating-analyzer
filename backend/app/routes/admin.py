@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from litestar import Router, Response, get, post, Request
 from litestar.di import Provide
-from litestar.exceptions import NotFoundException
+from litestar.exceptions import ClientException, NotFoundException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +25,19 @@ async def reset_database(request: Request) -> dict:
     """Drop all data tables and re-create them. Admin only."""
     require_admin(request)
 
+    # Filet de sécurité : sans sauvegarde de l'état courant, pas de réinitialisation.
+    from app.services.backup import service as backup_service
+
+    safety_backup = None
+    if backup_service.is_available():
+        try:
+            safety_backup = (await backup_service.run_backup("avant-reinit")).name
+        except Exception as exc:
+            raise ClientException(
+                detail=f"Sauvegarde préalable impossible, réinitialisation annulée : {exc}",
+                status_code=500,
+            ) from None
+
     import app.models  # noqa: F401 — ensure all models registered
 
     async with engine.begin() as conn:
@@ -33,7 +46,7 @@ async def reset_database(request: Request) -> dict:
 
     await _bootstrap()
 
-    return {"status": "ok", "message": "Database reset successfully"}
+    return {"status": "ok", "message": "Database reset successfully", "safety_backup": safety_backup}
 
 
 @post("/recalculate-clubs")
