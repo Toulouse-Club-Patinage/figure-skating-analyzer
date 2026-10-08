@@ -106,7 +106,7 @@ résultat une clé `changes: list[dict]`, chaque élément de la forme :
 |---|---|---|
 | `new_score` | `run_import` | création d'un `Score` |
 | `score_corrected` | `run_import` | `Score` existant dont `total_score`, `technical_score`, `component_score` ou `deductions` diffère de la valeur scrapée (non nulle). En mode non-`force`, ces valeurs sont désormais mises à jour (aujourd'hui seul le rang l'est). |
-| `final_result` | `run_import` | création d'un `CategoryResult` avec `combined_total` non nul, ou `combined_total`/`overall_rank` modifié sur un existant |
+| `final_result` | `run_import` | création d'un `CategoryResult` avec `combined_total` non nul, ou `combined_total` modifié sur un existant (un changement d'`overall_rank` seul ne compte pas : il bouge à chaque passage d'un autre patineur) |
 | `sheet_available` | `run_enrich` | `Score.elements` renseigné alors qu'il était vide |
 
 Un changement de `Score.rank` seul ne produit rien. `changes` n'est pas persisté
@@ -114,22 +114,23 @@ dans `last_import_log` (l'interface d'import ne l'affiche pas).
 
 **Job `poll`.** Nouveau type traité dans le handler du lifespan (`main.py`) :
 `run_import(force=False)`, puis `run_enrich(force=False)`, fusion des `changes`,
-puis `notify_competition_changes`. Le résultat du job concatène les deux logs.
+puis `notify_competition_changes`. Le résultat du job est le log d'import à plat,
+complété de `pdfs_downloaded` et `scores_enriched` (l'onglet Tâches admin
+l'affiche comme un import, libellé « Suivi »).
 `_polling_loop` soumet `poll` au lieu de `import` + `enrich`. Les jobs `import` et
 `reimport` manuels appellent `notify_competition_changes` avec leurs propres
 `changes` si `comp.polling_enabled` ; `enrich` manuel aussi. La notification admin
-actuellement appelée dans `run_import` en est retirée et déplacée dans
-`notify_competition_changes` (même condition : au moins un score ou classement
-importé, même contenu), pour que `run_import` reste sans effet de bord de
-notification.
+actuellement appelée dans `run_import` en est retirée et appelée depuis la couche
+job (`notify_competition_update`, inchangée, après chaque import d'une compétition
+suivie), pour que `run_import` reste sans effet de bord de notification. La
+logique des jobs quitte la closure du lifespan pour `app/services/job_handlers.py`
+(`handle_job(session, job)`), testable.
 
 **`notify_competition_changes(session, comp, changes, app_base_url="")`** dans
 `notification_service.py` :
 
 1. Ne fait rien si `changes` est vide ou si `not comp.polling_enabled`.
-2. Notification admin existante (contenu inchangé), calculée depuis les
-   `new_score` / `final_result`.
-3. Pour les comptes patineur : charger les `UserSkater` des `skater_id` concernés
+2. Pour les comptes patineur : charger les `UserSkater` des `skater_id` concernés
    joints à `User` (`role == "skater"`, `is_active`). Pour chaque utilisateur,
    filtrer les changements sur ses patineurs ; s'il en reste, créer **une**
    `Notification` :
@@ -138,11 +139,12 @@ notification.
    - `message` : une ligne par patineur, ex.
      `Ilan Dupont : Programme court 42,31 (3e), feuille de score disponible`
      (libellés segment SP → Programme court, FS → Programme libre, sinon code
-     brut ; `final_result` → `Classement final : 2e (118,40)`) ;
+     brut ; `final_result` → `Classement général : 2e (118,40)` — « général »
+     et non « final », car le total combiné existe dès le premier segment) ;
    - email si `user.email_notifications` et SMTP configuré, nouveau template
      `templates/emails/skater_competition_notification.html` (étend
      `base_email.html`), avec le lien vers la compétition.
-4. `session.flush()` ; le commit est fait par l'appelant (cohérent avec les
+3. `session.flush()` ; le commit est fait par l'appelant (cohérent avec les
    autres `notify_*`).
 
 ### 3. Frontend
