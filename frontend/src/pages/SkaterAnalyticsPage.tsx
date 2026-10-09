@@ -1066,19 +1066,13 @@ export default function SkaterAnalyticsPage() {
                                   <span className="material-symbols-outlined text-sm text-on-surface-variant leading-none">
                                     {isCollapsed ? "chevron_right" : "expand_more"}
                                   </span>
-                                  {user?.role === "skater" ? (
-                                    <span className="font-medium text-on-surface">
-                                      {row.competitionName ?? `#${row.competitionId}`}
-                                    </span>
-                                  ) : (
-                                    <Link
-                                      to={`/competitions/${row.competitionId}`}
-                                      className="text-primary hover:underline font-medium"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      {row.competitionName ?? `#${row.competitionId}`}
-                                    </Link>
-                                  )}
+                                  <Link
+                                    to={`/competitions/${row.competitionId}`}
+                                    className="text-primary hover:underline font-medium"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    {row.competitionName ?? `#${row.competitionId}`}
+                                  </Link>
                                 </div>
                               </td>
                               {/* col 2: category */}
@@ -1157,18 +1151,12 @@ export default function SkaterAnalyticsPage() {
                                 <>
                                   {/* col 1: competition name */}
                                   <td className="px-3 py-2 text-sm text-on-surface">
-                                    {user?.role === "skater" ? (
-                                      <span className="font-medium text-on-surface">
-                                        {s.competition_name ?? `#${s.competition_id}`}
-                                      </span>
-                                    ) : (
-                                      <Link
-                                        to={`/competitions/${s.competition_id}`}
-                                        className="text-primary hover:underline font-medium"
-                                      >
-                                        {s.competition_name ?? `#${s.competition_id}`}
-                                      </Link>
-                                    )}
+                                    <Link
+                                      to={`/competitions/${s.competition_id}`}
+                                      className="text-primary hover:underline font-medium"
+                                    >
+                                      {s.competition_name ?? `#${s.competition_id}`}
+                                    </Link>
                                   </td>
                                   {/* col 2: category */}
                                   <td className="px-3 py-2 text-right text-sm text-on-surface-variant whitespace-nowrap">
