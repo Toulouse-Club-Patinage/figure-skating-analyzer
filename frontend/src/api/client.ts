@@ -233,6 +233,7 @@ export interface Score {
   age_group: string | null;
   gender: string | null;
   pdf_url: string | null;
+  is_own?: boolean;
 }
 
 /** Extract the numeric score from a components entry (handles both old float and new enriched format). */
@@ -261,6 +262,7 @@ export interface CategoryResult {
   skating_level: string | null;
   age_group: string | null;
   gender: string | null;
+  is_own?: boolean;
 }
 
 export interface Skater {
@@ -478,7 +480,7 @@ export interface BulkImportResult {
 
 export interface JobInfo {
   id: string;
-  type: "import" | "reimport" | "enrich";
+  type: "import" | "reimport" | "enrich" | "poll";
   trigger: "manual" | "auto" | "bulk";
   competition_id: number;
   competition_name: string | null;

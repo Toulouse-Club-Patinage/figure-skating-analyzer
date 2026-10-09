@@ -379,6 +379,7 @@ function AuthenticatedLayout() {
                 <Route path="/patineurs/:id/analyse" element={<SkaterAnalyticsPage />} />
                 <Route path="/mes-patineurs" element={<MySkatersRoute />} />
                 <Route path="/profil" element={<ProfilePage />} />
+                <Route path="/competitions/:id" element={<CompetitionPage />} />
                 <Route path="*" element={<SkaterRedirect />} />
               </>
             ) : user?.role === "coach" ? (

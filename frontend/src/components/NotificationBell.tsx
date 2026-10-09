@@ -103,7 +103,7 @@ export default function NotificationBell() {
                     <p className={`text-sm truncate ${!n.is_read ? "font-bold text-on-surface" : "text-on-surface-variant"}`}>
                       {n.title}
                     </p>
-                    <p className="text-xs text-on-surface-variant truncate mt-0.5">
+                    <p className={`text-xs text-on-surface-variant mt-0.5 ${n.type === "competition" ? "whitespace-pre-line line-clamp-3" : "truncate"}`}>
                       {n.message}
                     </p>
                     {n.created_at && (
