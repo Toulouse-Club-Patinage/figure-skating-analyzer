@@ -75,6 +75,10 @@ async def test_skater_can_read_linked_only(mcp_http, oauth_provider, skater_user
     assert tool_json(await call(mcp_http, token, "list_my_skaters"))[0]["id"] == linked.id
     assert tool_json(await call(mcp_http, token, "get_skater", skater_id=linked.id))["id"] == linked.id
     assert tool_json(await call(mcp_http, token, "get_score_elements", score_id=s1.id))
+    # Compétitions où un patineur lié a un résultat : visibles (droits hérités des routes).
+    comps = tool_json(await call(mcp_http, token, "list_competitions"))
+    assert [c["id"] for c in comps["items"]] == [scored[0].id]
+    assert tool_json(await call(mcp_http, token, "get_competition", competition_id=scored[0].id))["id"] == scored[0].id
 
     for name, args in [
         ("get_skater", {"skater_id": other.id}),
@@ -84,8 +88,6 @@ async def test_skater_can_read_linked_only(mcp_http, oauth_provider, skater_user
         ("get_skater_seasons", {"skater_id": other.id}),
         ("get_score_elements", {"score_id": s2.id}),
         ("search_skaters", {"query": "Bob"}),
-        ("list_competitions", {}),
-        ("get_competition", {"competition_id": scored[0].id}),
         ("get_team_scores", {"competition_id": scored[0].id}),
         ("club_progression_ranking", {}),
         ("club_element_mastery", {}),

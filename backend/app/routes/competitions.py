@@ -4,11 +4,11 @@ from datetime import date as date_type, datetime, timezone
 
 from litestar import Router, get, post, delete, patch, Request
 from litestar.di import Provide
-from litestar.exceptions import NotFoundException
+from litestar.exceptions import NotFoundException, PermissionDeniedException
 from sqlalchemy import select, distinct, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.guards import reject_skater_role, require_admin
+from app.auth.guards import require_admin, visible_competition_ids
 from app.database import get_session
 from app.models.competition import Competition
 from app.models.category_result import CategoryResult
@@ -49,7 +49,6 @@ async def list_competitions(
     ligue: str | None = None,
     my_club: bool = False,
 ) -> list[dict]:
-    reject_skater_role(request)
     effective_club = club
     if my_club and not club:
         settings_result = await session.execute(select(AppSettings).limit(1))
@@ -70,13 +69,18 @@ async def list_competitions(
             .where(func.upper(Skater.club) == effective_club.upper())
             .distinct()
         )
+    visible = await visible_competition_ids(request, session)
+    if visible is not None:
+        stmt = stmt.where(Competition.id.in_(visible))
     result = await session.execute(stmt)
     return [competition_to_dict(c) for c in result.scalars()]
 
 
 @get("/{competition_id:int}")
 async def get_competition(competition_id: int, request: Request, session: AsyncSession) -> dict:
-    reject_skater_role(request)
+    visible = await visible_competition_ids(request, session)
+    if visible is not None and competition_id not in visible:
+        raise PermissionDeniedException("You do not have access to this competition")
     comp = await session.get(Competition, competition_id)
     if not comp:
         raise NotFoundException(f"Competition {competition_id} not found")
