@@ -113,6 +113,117 @@ async def notify_competition_update(
     await session.flush()
 
 
+SEGMENT_LABELS = {"SP": "Programme court", "FS": "Programme libre"}
+
+
+def _fmt_score(value: float) -> str:
+    return f"{value:.2f}".replace(".", ",")
+
+
+def _fmt_rank(rank: int) -> str:
+    return "1er" if rank == 1 else f"{rank}e"
+
+
+def _describe_change(change: dict) -> str:
+    segment = SEGMENT_LABELS.get(change["segment"] or "", change["segment"] or "")
+    total, rank = change["total_score"], change["rank"]
+    if change["kind"] == "sheet_available":
+        return f"feuille de score disponible ({segment})"
+    if change["kind"] == "final_result":
+        text = "Classement général :"
+        if rank is not None:
+            text += f" {_fmt_rank(rank)}"
+        if total is not None:
+            text += f" ({_fmt_score(total)})"
+        return text
+    text = segment
+    if total is not None:
+        text += f" {_fmt_score(total)}"
+    if rank is not None:
+        text += f" ({_fmt_rank(rank)})"
+    if change["kind"] == "score_corrected":
+        text += " — score corrigé"
+    return text
+
+
+def format_skater_changes(skater_name: str, changes: list[dict]) -> str:
+    """One notification line for one skater, e.g. "Ilan Dupont : Programme court 42,31 (3e)"."""
+    return f"{skater_name} : " + ", ".join(_describe_change(c) for c in changes)
+
+
+async def notify_competition_changes(
+    session: AsyncSession,
+    competition,
+    changes: list[dict],
+    app_base_url: str = "",
+) -> None:
+    """Notify skater-role users about result changes of their linked skaters.
+
+    One notification (and one email) per user and call, listing each of their
+    skaters concerned. Only for competitions being followed (polling enabled).
+    """
+    if not changes or not competition.polling_enabled:
+        return
+
+    changes_by_skater: dict[int, list[dict]] = {}
+    for change in changes:
+        changes_by_skater.setdefault(change["skater_id"], []).append(change)
+
+    stmt = (
+        select(User, UserSkater.skater_id)
+        .join(UserSkater, UserSkater.user_id == User.id)
+        .where(
+            UserSkater.skater_id.in_(changes_by_skater),
+            User.role == "skater",
+            User.is_active == True,  # noqa: E712
+        )
+    )
+    rows = (await session.execute(stmt)).all()
+    if not rows:
+        return
+
+    skaters_by_user: dict[str, tuple[User, list[int]]] = {}
+    for user, skater_id in rows:
+        skaters_by_user.setdefault(user.id, (user, []))[1].append(skater_id)
+
+    names = {sid: await _get_skater_name(session, sid) for sid in changes_by_skater}
+    title = f"Résultats : {competition.name}"
+    link = f"/competitions/{competition.id}"
+
+    smtp_cfg = await get_smtp_config(session)
+    settings = (await session.execute(select(AppSettings).limit(1))).scalar_one_or_none()
+    club_name = settings.club_name if settings else "SkateLab"
+
+    for user, skater_ids in skaters_by_user.values():
+        lines = [
+            format_skater_changes(names[sid], changes_by_skater[sid])
+            for sid in sorted(skater_ids, key=lambda sid: names[sid])
+        ]
+        session.add(Notification(
+            user_id=user.id,
+            type="competition",
+            title=title,
+            message="\n".join(lines),
+            link=link,
+        ))
+
+        if user.email_notifications and smtp_cfg:
+            await send_email(
+                to=user.email,
+                subject=title,
+                template_name="skater_competition_notification.html",
+                context={
+                    "club_name": club_name,
+                    "competition_name": competition.name,
+                    "lines": lines,
+                    "app_url": f"{app_base_url}{link}" if app_base_url else "",
+                },
+                smtp_config=smtp_cfg,
+            )
+
+    await session.flush()
+
+
 async def notify_review(session: AsyncSession, review, app_base_url: str = "") -> None:
     """Create in-app notifications and queue emails for a visible review."""
     if not review.visible_to_skater:
