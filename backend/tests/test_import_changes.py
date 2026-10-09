@@ -5,8 +5,10 @@ from app.models.category_result import CategoryResult
 from app.models.competition import Competition
 from app.models.notification import Notification
 from app.models.score import Score
+from app.models.skater import Skater
 from app.services import import_service
-from app.services.site_scraper import ScrapedCategoryResult, ScrapedCompetitionInfo, ScrapedResult
+from app.services.name_parser import parse_skater_name
+from app.services.site_scraper import ScrapedCategoryResult, ScrapedCompetitionInfo, ScrapedEvent, ScrapedResult
 
 CATEGORY = "R1 Novice Femme"
 
@@ -109,3 +111,39 @@ async def test_run_import_no_longer_notifies(db_session, comp, admin_user, monke
     use_scraper(monkeypatch, FakeScraper([sp()]))
     await import_service.run_import(db_session, comp.id)
     assert (await db_session.execute(select(Notification))).scalars().all() == []
+
+
+async def test_sheet_available_reported_once(db_session, comp, monkeypatch, tmp_path):
+    first, last = parse_skater_name("Alice DUPONT")
+    skater = Skater(first_name=first, last_name=last, club="TCP")
+    db_session.add(skater)
+    await db_session.flush()
+    db_session.add(Score(competition_id=comp.id, skater_id=skater.id, category=CATEGORY,
+                         segment="SP", total_score=42.31, rank=3))
+    await db_session.commit()
+
+    pdf = tmp_path / "sp.pdf"
+    use_scraper(monkeypatch, FakeScraper(events=[ScrapedEvent(category=CATEGORY, segment="Short Program",
+                                                              pdf_url="http://example.com/sp.pdf")]))
+
+    async def fake_download(urls, slug):
+        return [pdf]
+
+    monkeypatch.setattr(import_service, "download_pdfs", fake_download)
+    monkeypatch.setattr(import_service, "parse_elements", lambda path: [
+        {"skater_name": "Alice DUPONT", "elements": [{"name": "2A"}], "category_segment": "x"},
+    ])
+    monkeypatch.setattr(import_service, "extract_segment_code", lambda value: "SP")
+
+    result = await import_service.run_enrich(db_session, comp.id)
+    assert [(c["kind"], c["skater_id"], c["segment"], c["total_score"]) for c in result["changes"]] == [
+        ("sheet_available", skater.id, "SP", 42.31)]
+
+    again = await import_service.run_enrich(db_session, comp.id)
+    assert again["changes"] == []
+
+
+async def test_enrich_without_pdf_has_no_changes(db_session, comp, monkeypatch):
+    use_scraper(monkeypatch, FakeScraper())
+    result = await import_service.run_enrich(db_session, comp.id)
+    assert result["changes"] == []

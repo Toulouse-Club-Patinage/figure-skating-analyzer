@@ -380,7 +380,7 @@ async def run_enrich(session: AsyncSession, competition_id: int, force: bool = F
     pdf_urls = [e.pdf_url for e in events if e.pdf_url]
 
     if not pdf_urls:
-        return {"competition_id": competition_id, "pdfs_downloaded": 0, "scores_enriched": 0, "errors": []}
+        return {"competition_id": competition_id, "pdfs_downloaded": 0, "scores_enriched": 0, "errors": [], "changes": []}
 
     slug = url_to_slug(comp.url)
     pdf_paths = await download_pdfs(pdf_urls, slug)
@@ -388,6 +388,7 @@ async def run_enrich(session: AsyncSession, competition_id: int, force: bool = F
     enriched = 0
     unmatched = []
     errors = []
+    changes: list[dict] = []
 
     for pdf_path in pdf_paths:
         try:
@@ -422,9 +423,15 @@ async def run_enrich(session: AsyncSession, competition_id: int, force: bool = F
                 if scores:
                     for score in scores:
                         if not score.elements or force:
+                            first_sheet = not score.elements
                             score.elements = elements
                             score.pdf_path = str(pdf_path)
                             enriched += 1
+                            if first_sheet and elements:
+                                changes.append(_change(
+                                    "sheet_available", score.skater_id, score.category,
+                                    score.segment, score.total_score, score.rank,
+                                ))
                         if enriched_components and (not score.components or force or isinstance(next(iter(score.components.values()), None), (int, float))):
                             score.components = enriched_components
                 else:
@@ -439,4 +446,5 @@ async def run_enrich(session: AsyncSession, competition_id: int, force: bool = F
         "scores_enriched": enriched,
         "unmatched": unmatched,
         "errors": errors,
+        "changes": changes,
     }
