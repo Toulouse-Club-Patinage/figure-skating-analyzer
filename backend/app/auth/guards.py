@@ -97,3 +97,27 @@ async def linked_skater_ids(request: Request, session: AsyncSession) -> set[int]
         select(UserSkater.skater_id).where(UserSkater.user_id == state["user_id"])
     )
     return set(result.scalars().all())
+
+
+async def visible_competition_ids(request: Request, session: AsyncSession) -> set[int] | None:
+    """Competitions visible to the current user, or None when the role is not restricted.
+
+    A ``skater`` sees the competitions where at least one linked skater has a
+    score or a category result.
+    """
+    allowed = await linked_skater_ids(request, session)
+    if allowed is None:
+        return None
+    if not allowed:
+        return set()
+
+    from sqlalchemy import select, union
+    from app.models.category_result import CategoryResult
+    from app.models.score import Score
+
+    stmt = union(
+        select(Score.competition_id).where(Score.skater_id.in_(allowed)),
+        select(CategoryResult.competition_id).where(CategoryResult.skater_id.in_(allowed)),
+    )
+    result = await session.execute(stmt)
+    return set(result.scalars().all())

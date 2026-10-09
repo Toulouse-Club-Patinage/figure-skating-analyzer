@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api, Score, CategoryResult, Competition } from "../api/client";
 import ScoreChart from "../components/ScoreChart";
 import TeamScoresTab from "../components/TeamScoresTab";
+import { useAuth } from "../auth/AuthContext";
 
 // --- Grouping helpers ---
 
@@ -75,6 +76,27 @@ function buildCategoryGroups(
   return groups.sort((a, b) => (a.category ?? "").localeCompare(b.category ?? ""));
 }
 
+/** Lien vers l'analyse du patineur, sauf pour les patineurs d'autrui vus par un compte patineur. */
+export function SkaterName({
+  skaterId,
+  firstName,
+  lastName,
+  isOwn,
+}: {
+  skaterId: number;
+  firstName: string | null;
+  lastName: string | null;
+  isOwn?: boolean;
+}) {
+  const label = firstName ? `${firstName} ${lastName}` : (lastName || "-");
+  if (isOwn === false) return <span className="font-medium">{label}</span>;
+  return (
+    <Link to={`/patineurs/${skaterId}/analyse`} className="font-medium hover:text-primary transition-colors">
+      {label}
+    </Link>
+  );
+}
+
 // --- Components ---
 
 function OverallResultsTable({ group }: { group: CategoryGroup }) {
@@ -115,12 +137,12 @@ function OverallResultsTable({ group }: { group: CategoryGroup }) {
                 )}
               </td>
               <td className="px-3 py-2">
-                <Link
-                  to={`/patineurs/${cr.skater_id}/analyse`}
-                  className="font-medium hover:text-primary transition-colors"
-                >
-                  {cr.skater_first_name ? `${cr.skater_first_name} ${cr.skater_last_name}` : (cr.skater_last_name || "-")}
-                </Link>
+                <SkaterName
+                  skaterId={cr.skater_id}
+                  firstName={cr.skater_first_name}
+                  lastName={cr.skater_last_name}
+                  isOwn={cr.is_own}
+                />
               </td>
               <td className="px-3 py-2 text-gray-600 max-w-[180px] truncate">
                 {cr.skater_club ?? "-"}
@@ -170,12 +192,12 @@ function SegmentScoresTable({ scores }: { scores: Score[] }) {
               <td className="px-3 py-2">{s.rank ?? "-"}</td>
               <td className="px-3 py-2 text-gray-400">{s.starting_number ?? "-"}</td>
               <td className="px-3 py-2">
-                <Link
-                  to={`/patineurs/${s.skater_id}/analyse`}
-                  className="font-medium hover:text-primary transition-colors"
-                >
-                  {s.skater_first_name ? `${s.skater_first_name} ${s.skater_last_name}` : (s.skater_last_name || "-")}
-                </Link>
+                <SkaterName
+                  skaterId={s.skater_id}
+                  firstName={s.skater_first_name}
+                  lastName={s.skater_last_name}
+                  isOwn={s.is_own}
+                />
               </td>
               <td className="px-3 py-2 text-gray-600 max-w-[180px] truncate">
                 {s.skater_club ?? "-"}
@@ -208,16 +230,20 @@ function SegmentScoresTable({ scores }: { scores: Score[] }) {
 function ResultsContent({
   scores,
   catResults,
+  isSkaterRole,
 }: {
   scores: Score[];
   catResults: CategoryResult[];
+  isSkaterRole: boolean;
 }) {
   const groups = buildCategoryGroups(scores, catResults);
 
   if (scores.length === 0) {
     return (
       <p className="text-gray-500">
-        Aucun résultat. Utilisez le bouton Importer sur la page Compétitions.
+        {isSkaterRole
+          ? "Aucun résultat pour le moment."
+          : "Aucun résultat. Utilisez le bouton Importer sur la page Compétitions."}
       </p>
     );
   }
@@ -299,6 +325,8 @@ export default function CompetitionPage() {
   const { id } = useParams<{ id: string }>();
   const competitionId = Number(id);
   const [activeTab, setActiveTab] = useState<"results" | "team">("results");
+  const { user } = useAuth();
+  const isSkaterRole = user?.role === "skater";
 
   const { data: competition, isLoading: loadingComp } = useQuery({
     queryKey: ["competition", competitionId],
@@ -320,7 +348,8 @@ export default function CompetitionPage() {
   if (!competition)
     return <p className="text-red-600">Compétition introuvable.</p>;
 
-  const isFranceClubs = competition.competition_type === "france_clubs";
+  // Le score équipe s'appuie sur des routes interdites au rôle patineur.
+  const isFranceClubs = competition.competition_type === "france_clubs" && !isSkaterRole;
 
   function getCompetitionStatus(c: Competition): { label: string; className: string } | null {
     if (!c.date) return null;
@@ -343,7 +372,7 @@ export default function CompetitionPage() {
     // ailleurs on n'annonce rien, et l'entrée sans `tab` du registre s'applique.
     <div data-tour-tab={isFranceClubs ? activeTab : undefined}>
       <Link
-        to="/competitions"
+        to={isSkaterRole ? "/mes-patineurs" : "/competitions"}
         className="text-primary text-xs font-bold uppercase tracking-wider hover:underline flex items-center gap-1"
       >
         <span className="material-symbols-outlined text-base">arrow_back</span>{" "}
@@ -417,7 +446,7 @@ export default function CompetitionPage() {
 
       {/* Tab content */}
       {activeTab === "results" && (
-        <ResultsContent scores={scores ?? []} catResults={catResults ?? []} />
+        <ResultsContent scores={scores ?? []} catResults={catResults ?? []} isSkaterRole={isSkaterRole} />
       )}
       {activeTab === "team" && isFranceClubs && (
         <TeamScoresTab competitionId={competitionId} />

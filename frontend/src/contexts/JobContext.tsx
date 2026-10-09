@@ -19,7 +19,7 @@ export interface Lot {
 }
 
 export interface FailedJobError {
-  type: "import" | "reimport" | "enrich";
+  type: "import" | "reimport" | "enrich" | "poll";
   error: string;
   timestamp: string;
 }

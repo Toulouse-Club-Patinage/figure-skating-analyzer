@@ -95,14 +95,15 @@ async def test_skater_cannot_list_all_skaters(client: AsyncClient, skater_setup)
 
 
 @pytest.mark.asyncio
-async def test_skater_cannot_access_competitions(client: AsyncClient, skater_setup):
-    """Skater CANNOT access competitions list."""
+async def test_skater_without_results_lists_no_competition(client: AsyncClient, skater_setup):
+    """Skater sees only competitions where a linked skater has results — none here."""
     token = skater_setup["token"]
     resp = await client.get(
         "/api/competitions/",
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert resp.status_code == 403
+    assert resp.status_code == 200
+    assert resp.json() == []
 
 
 @pytest.mark.asyncio

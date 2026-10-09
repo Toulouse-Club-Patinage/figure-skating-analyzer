@@ -115,6 +115,39 @@ def _orphan_skater_query():
     )
 
 
+_SCORE_VALUE_FIELDS = ("total_score", "technical_score", "component_score", "deductions")
+
+
+def _differs(old: float | None, new: float | None) -> bool:
+    """True when a scraped value (non-null) differs from the stored one."""
+    if new is None:
+        return False
+    return old is None or round(old, 2) != round(new, 2)
+
+
+def _score_values_changed(score: Score, r) -> bool:
+    return any(_differs(getattr(score, f), getattr(r, f)) for f in _SCORE_VALUE_FIELDS)
+
+
+def _change(
+    kind: str,
+    skater_id: int,
+    category: str | None,
+    segment: str | None = None,
+    total_score: float | None = None,
+    rank: int | None = None,
+) -> dict:
+    """A result change worth notifying (see notification_service.notify_competition_changes)."""
+    return {
+        "skater_id": skater_id,
+        "kind": kind,
+        "category": category,
+        "segment": segment,
+        "total_score": total_score,
+        "rank": rank,
+    }
+
+
 async def run_import(session: AsyncSession, competition_id: int, force: bool = False) -> dict:
     """Import competition results. Returns the import result dict."""
     comp = await session.get(Competition, competition_id)
@@ -167,6 +200,7 @@ async def run_import(session: AsyncSession, competition_id: int, force: bool = F
     cat_imported = 0
     cat_skipped = 0
     errors = []
+    changes: list[dict] = []
 
     for r in results:
         try:
@@ -181,6 +215,7 @@ async def run_import(session: AsyncSession, competition_id: int, force: bool = F
             )
             existing_score = existing.scalar_one_or_none()
             if existing_score:
+                corrected = _score_values_changed(existing_score, r)
                 if force:
                     # Update all scraped fields, but preserve enriched data (elements, pdf_path)
                     existing_score.rank = r.rank
@@ -208,6 +243,16 @@ async def run_import(session: AsyncSession, competition_id: int, force: bool = F
                     # Update rank (may change as more skaters complete the segment)
                     if r.rank is not None and existing_score.rank != r.rank:
                         existing_score.rank = r.rank
+                    if corrected:
+                        for field in _SCORE_VALUE_FIELDS:
+                            value = getattr(r, field)
+                            if value is not None:
+                                setattr(existing_score, field, value)
+                if corrected:
+                    changes.append(_change(
+                        "score_corrected", skater.id, existing_score.category,
+                        existing_score.segment, existing_score.total_score, existing_score.rank,
+                    ))
                 skipped += 1
                 continue
             score = Score(
@@ -231,6 +276,7 @@ async def run_import(session: AsyncSession, competition_id: int, force: bool = F
             pf, pl = parse_skater_name(r.name)
             score.club = _normalize_couple_club(r.club, pf, pl)
             session.add(score)
+            changes.append(_change("new_score", skater.id, score.category, score.segment, score.total_score, score.rank))
             imported += 1
         except Exception as e:
             errors.append({"skater": r.name, "error": str(e)})
@@ -247,6 +293,7 @@ async def run_import(session: AsyncSession, competition_id: int, force: bool = F
             )
             existing_cr = existing.scalar_one_or_none()
             if existing_cr:
+                total_changed = _differs(existing_cr.combined_total, cr.combined_total)
                 # Update ranks and totals (change as competition progresses)
                 if cr.overall_rank is not None:
                     existing_cr.overall_rank = cr.overall_rank
@@ -265,6 +312,11 @@ async def run_import(session: AsyncSession, competition_id: int, force: bool = F
                     existing_cr.skating_level = parsed["skating_level"]
                     existing_cr.age_group = parsed["age_group"]
                     existing_cr.gender = parsed["gender"]
+                if total_changed:
+                    changes.append(_change(
+                        "final_result", skater.id, existing_cr.category,
+                        total_score=existing_cr.combined_total, rank=existing_cr.overall_rank,
+                    ))
                 cat_skipped += 1
                 continue
             cat_result = CategoryResult(
@@ -283,6 +335,11 @@ async def run_import(session: AsyncSession, competition_id: int, force: bool = F
             cat_result.gender = parsed["gender"]
             cat_result.club = cr.club
             session.add(cat_result)
+            if cat_result.combined_total is not None:
+                changes.append(_change(
+                    "final_result", skater.id, cat_result.category,
+                    total_score=cat_result.combined_total, rank=cat_result.overall_rank,
+                ))
             cat_imported += 1
         except Exception as e:
             errors.append({"skater": cr.name, "error": str(e)})
@@ -299,11 +356,6 @@ async def run_import(session: AsyncSession, competition_id: int, force: bool = F
     }
     comp.last_import_log = import_log
 
-    # Notify admins when a polled competition gets new results
-    if comp.polling_enabled and (imported > 0 or cat_imported > 0):
-        from app.services.notification_service import notify_competition_update
-        await notify_competition_update(session, comp, import_log)
-
     await session.commit()
 
     # Clean up orphaned skaters (no scores and no category results)
@@ -314,10 +366,7 @@ async def run_import(session: AsyncSession, competition_id: int, force: bool = F
     if orphans:
         await session.commit()
 
-    return {
-        "competition_id": competition_id,
-        **import_log,
-    }
+    return {"competition_id": competition_id, **import_log, "changes": changes}
 
 
 async def run_enrich(session: AsyncSession, competition_id: int, force: bool = False) -> dict:
@@ -331,7 +380,7 @@ async def run_enrich(session: AsyncSession, competition_id: int, force: bool = F
     pdf_urls = [e.pdf_url for e in events if e.pdf_url]
 
     if not pdf_urls:
-        return {"competition_id": competition_id, "pdfs_downloaded": 0, "scores_enriched": 0, "errors": []}
+        return {"competition_id": competition_id, "pdfs_downloaded": 0, "scores_enriched": 0, "errors": [], "changes": []}
 
     slug = url_to_slug(comp.url)
     pdf_paths = await download_pdfs(pdf_urls, slug)
@@ -339,6 +388,7 @@ async def run_enrich(session: AsyncSession, competition_id: int, force: bool = F
     enriched = 0
     unmatched = []
     errors = []
+    changes: list[dict] = []
 
     for pdf_path in pdf_paths:
         try:
@@ -373,9 +423,15 @@ async def run_enrich(session: AsyncSession, competition_id: int, force: bool = F
                 if scores:
                     for score in scores:
                         if not score.elements or force:
+                            first_sheet = not score.elements
                             score.elements = elements
                             score.pdf_path = str(pdf_path)
                             enriched += 1
+                            if first_sheet and elements:
+                                changes.append(_change(
+                                    "sheet_available", score.skater_id, score.category,
+                                    score.segment, score.total_score, score.rank,
+                                ))
                         if enriched_components and (not score.components or force or isinstance(next(iter(score.components.values()), None), (int, float))):
                             score.components = enriched_components
                 else:
@@ -390,4 +446,5 @@ async def run_enrich(session: AsyncSession, competition_id: int, force: bool = F
         "scores_enriched": enriched,
         "unmatched": unmatched,
         "errors": errors,
+        "changes": changes,
     }

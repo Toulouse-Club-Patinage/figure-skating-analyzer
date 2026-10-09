@@ -47,6 +47,7 @@ const TYPE_LABELS: Record<string, string> = {
   import: "Import",
   reimport: "Réimport",
   enrich: "Enrichissement",
+  poll: "Suivi",
 };
 
 const TRIGGER_LABELS: Record<string, string> = {
@@ -83,7 +84,7 @@ function JobDetailModal({
   }, [onClose]);
 
   const r = job.result;
-  const isImport = job.type === "import" || job.type === "reimport";
+  const isImport = job.type === "import" || job.type === "reimport" || job.type === "poll";
   const isEnrich = job.type === "enrich";
   const importResult = isImport ? (r as ImportResult | null) : null;
   const enrichResult = isEnrich ? (r as EnrichResult | null) : null;

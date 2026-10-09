@@ -10,11 +10,29 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.auth.guards import linked_skater_ids, require_skater_access
+from app.auth.guards import linked_skater_ids, require_skater_access, visible_competition_ids
 from app.config import PDF_DIR
 from app.database import get_session
 from app.models.score import Score
 from app.models.category_result import CategoryResult
+
+
+async def _skater_scope(
+    request: Request, session: AsyncSession, competition_id: int | None
+) -> tuple[set[int] | None, bool]:
+    """Return (linked skater ids or None, whether rows must be filtered to them).
+
+    A skater sees every row of a competition where one of their skaters has a
+    result, and only their own rows otherwise.
+    """
+    allowed = await linked_skater_ids(request, session)
+    if allowed is None:
+        return None, False
+    if competition_id is not None:
+        visible = await visible_competition_ids(request, session)
+        if competition_id in visible:
+            return allowed, False
+    return allowed, True
 
 
 @get("/")
@@ -37,16 +55,23 @@ async def list_scores(
     if segment is not None:
         stmt = stmt.where(Score.segment == segment.upper())
 
-    allowed = await linked_skater_ids(request, session)
-    if allowed is not None:
+    allowed, restrict = await _skater_scope(request, session, competition_id)
+    if restrict:
         stmt = stmt.where(Score.skater_id.in_(allowed))
 
     result = await session.execute(stmt)
     scores = result.scalars().all()
-    return [_score_to_dict(s) for s in scores]
+    return [_score_to_dict(s, own=allowed is None or s.skater_id in allowed) for s in scores]
 
 
-def _score_to_dict(s: Score) -> dict:
+def _component_totals(components: dict | None) -> dict | None:
+    """Keep only the total per component (drop per-judge detail)."""
+    if not components:
+        return components
+    return {k: (v["score"] if isinstance(v, dict) else v) for k, v in components.items()}
+
+
+def _score_to_dict(s: Score, own: bool = True) -> dict:
     return {
         "id": s.id,
         "competition_id": s.competition_id,
@@ -65,13 +90,14 @@ def _score_to_dict(s: Score) -> dict:
         "technical_score": s.technical_score,
         "component_score": s.component_score,
         "deductions": s.deductions,
-        "components": s.components,
-        "elements": s.elements,
+        "components": s.components if own else _component_totals(s.components),
+        "elements": s.elements if own else None,
         "skating_level": s.skating_level,
         "age_group": s.age_group,
         "gender": s.gender,
         "event_date": s.event_date.isoformat() if s.event_date else None,
-        "pdf_url": _pdf_serving_url(s.pdf_path),
+        "pdf_url": _pdf_serving_url(s.pdf_path) if own else None,
+        "is_own": own,
     }
 
 
@@ -116,15 +142,18 @@ async def list_category_results(
     if skater_id is not None:
         stmt = stmt.where(CategoryResult.skater_id == skater_id)
 
-    allowed = await linked_skater_ids(request, session)
-    if allowed is not None:
+    allowed, restrict = await _skater_scope(request, session, competition_id)
+    if restrict:
         stmt = stmt.where(CategoryResult.skater_id.in_(allowed))
 
     result = await session.execute(stmt)
-    return [_category_result_to_dict(cr) for cr in result.scalars().all()]
+    return [
+        _category_result_to_dict(cr, own=allowed is None or cr.skater_id in allowed)
+        for cr in result.scalars().all()
+    ]
 
 
-def _category_result_to_dict(cr: CategoryResult) -> dict:
+def _category_result_to_dict(cr: CategoryResult, own: bool = True) -> dict:
     return {
         "id": cr.id,
         "competition_id": cr.competition_id,
@@ -144,6 +173,7 @@ def _category_result_to_dict(cr: CategoryResult) -> dict:
         "skating_level": cr.skating_level,
         "age_group": cr.age_group,
         "gender": cr.gender,
+        "is_own": own,
     }
 
 

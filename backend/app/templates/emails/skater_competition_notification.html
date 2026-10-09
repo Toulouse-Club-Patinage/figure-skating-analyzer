@@ -1,0 +1,17 @@
+{% extends "base_email.html" %}
+{% block content %}
+<h2 style="margin:0 0 16px; font-family:Manrope,sans-serif; font-size:18px; color:#191c1e;">
+  Nouveaux résultats
+</h2>
+<p style="margin:0 0 8px; color:#49454f;">
+  Les résultats de <strong>{{ competition_name }}</strong> ont été mis à jour :
+</p>
+<ul style="margin:0 0 16px; padding-left:20px; font-size:14px; color:#191c1e;">
+  {% for line in lines %}
+  <li style="margin:0 0 4px;">{{ line }}</li>
+  {% endfor %}
+</ul>
+{% if app_url %}
+<p style="margin:16px 0 0;"><a href="{{ app_url }}" class="btn">Voir la compétition</a></p>
+{% endif %}
+{% endblock %}

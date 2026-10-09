@@ -14,7 +14,7 @@ from app.config import ALLOWED_ORIGINS, LOGOS_DIR, PDF_DIR
 from app.database import init_db, async_session_factory
 from app.auth.guards import auth_guard
 from app.services.job_queue import job_queue
-from app.services.import_service import run_import, run_enrich
+from app.services.job_handlers import handle_job
 from app.routes.auth import router as auth_router
 from app.routes.competitions import router as competitions_router
 from app.routes.jobs import router as jobs_router
@@ -68,9 +68,8 @@ async def _polling_loop() -> None:
                         comp.polling_enabled = False
                         logger.info("Auto-disabled polling for competition %d (%s)", comp.id, comp.name)
                         continue
-                    await job_queue.create_job("import", comp.id, trigger="auto")
-                    await job_queue.create_job("enrich", comp.id, trigger="auto")
-                    logger.info("Polling: submitted import+enrich for competition %d (%s)", comp.id, comp.name)
+                    await job_queue.create_job("poll", comp.id, trigger="auto")
+                    logger.info("Polling: submitted poll for competition %d (%s)", comp.id, comp.name)
                 await session.commit()
         except Exception:
             logger.exception("Error in polling loop")
@@ -89,14 +88,7 @@ async def lifespan(_: Litestar) -> AsyncGenerator[None, None]:
 
     async def _handle_job(job: dict) -> dict:
         async with async_session_factory() as session:
-            if job["type"] == "import":
-                return await run_import(session, job["competition_id"], force=False)
-            elif job["type"] == "reimport":
-                return await run_import(session, job["competition_id"], force=True)
-            elif job["type"] == "enrich":
-                return await run_enrich(session, job["competition_id"], force=False)
-            else:
-                raise ValueError(f"Unknown job type: {job['type']}")
+            return await handle_job(session, job)
 
     job_queue.set_handler(_handle_job)
     await job_queue.start_worker()
