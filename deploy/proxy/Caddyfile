@@ -27,6 +27,32 @@
 	}
 }
 
+# --- Ligue — instance de démonstration -------------------------------
+# Seconde installation de Ligue (/opt/stacks/ligue-demo), copie de la prod
+# où les clubs testent sans effet réel. Son Caddy interne s'appelle
+# `ligue-demo-caddy` (LIGUE_CADDY_CONTAINER de son .env). Mêmes règles que
+# le bloc Ligue, y compris la limite de la zone de danger (remise à neuf de
+# la démo par restauration d'archive).
+#
+# ⚠️ Comme pour LIGUE_DOMAIN_OLD : une adresse de site vide empêche Caddy de
+# démarrer et mettrait tout le routeur à terre. Renseigner
+# `LIGUE_DEMO_DOMAIN` dans le .env AVANT de recharger, et pour retirer la
+# démo, commenter le bloc ENTIER.
+{$LIGUE_DEMO_DOMAIN} {
+	encode gzip
+
+	handle /api/* {
+		request_body {
+			max_size 110MB
+		}
+		reverse_proxy ligue-demo-caddy:80
+	}
+
+	handle {
+		reverse_proxy ligue-demo-caddy:80
+	}
+}
+
 # --- Ligue — ancien domaine, redirection ------------------------------
 # L'app a changé de domaine (toulouseclubpatinage.com → ligue-occitanie-sg.com).
 # Des liens vers l'ancien nom circulent dans les mails déjà envoyés aux clubs
