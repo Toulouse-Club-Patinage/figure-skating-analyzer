@@ -19,8 +19,16 @@
 # `!reset` annule une liste héritée du fichier de base (Compose v2.24+).
 # Si la version installée est plus ancienne, remplacer `!reset []` par `[]`.
 
+# Politique de reprise : sans `restart`, Docker ne relance pas les conteneurs
+# après un redémarrage du VPS (le routeur de bordure revenait, SkateLab non).
+# `unless-stopped` : relancé au boot et après un crash, sauf arrêt manuel
+# (`docker compose stop`). Au boot, Docker ignore `depends_on` : si nginx
+# démarre avant que `backend` soit résolvable, il s'arrête et est relancé.
+# Uniquement ici : en local, les conteneurs ne doivent pas repartir seuls.
+
 services:
   backend:
+    restart: unless-stopped
     # Le backend n'a pas à être joignable depuis l'extérieur : `frontend`
     # (nginx) l'atteint par le réseau interne du stack.
     ports: !reset []
@@ -31,6 +39,7 @@ services:
       - ./var/backups:/data/backups
 
   frontend:
+    restart: unless-stopped
     # Nom de conteneur figé : le routeur de bordure route dessus.
     # C'est un CONTRAT avec deploy/proxy/Caddyfile.
     container_name: skatelab-frontend
